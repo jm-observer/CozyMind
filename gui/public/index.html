@@ -14,61 +14,58 @@
         </header>
 
         <main>
-            <!-- 连接状态卡片 -->
-            <div class="status-card">
-                <div class="status-header">
-                    <h2>连接状态</h2>
-                    <div class="status-indicator" id="statusIndicator">
-                        <span class="status-dot checking"></span>
-                        <span class="status-text">检测中...</span>
+            <!-- 当前选中的连接 -->
+            <div class="selected-connection-card">
+                <div class="selected-header">
+                    <h2>当前选中连接</h2>
+                    <div class="selected-info" id="selectedInfo">
+                        <span class="selected-name">未选择</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI-Core 服务列表 -->
+            <div class="services-card">
+                <div class="services-header">
+                    <h2>AI-Core 服务列表</h2>
+                    <div class="controls-inline">
+                        <button class="btn btn-sm btn-primary" onclick="checkAllConnections()">
+                            🔄 检测所有
+                        </button>
+                        <button class="btn btn-sm btn-secondary" id="toggleAutoBtn" onclick="toggleAutoCheck()">
+                            ⏸️ 停止自动
+                        </button>
                     </div>
                 </div>
                 
-                <div class="status-details" id="statusDetails">
-                    <div class="detail-item">
-                        <span class="label">服务地址:</span>
-                        <span class="value">http://127.0.0.1:9800</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">最后检测:</span>
-                        <span class="value" id="lastCheck">--</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">响应时间:</span>
-                        <span class="value" id="responseTime">--</span>
-                    </div>
+                <div class="services-grid" id="servicesGrid">
+                    <!-- 动态填充服务卡片 -->
                 </div>
             </div>
 
-            <!-- AI-Core 信息卡片 -->
-            <div class="info-card" id="infoCard" style="display: none;">
-                <h2>AI-Core 信息</h2>
-                <div class="info-content" id="infoContent">
-                    <!-- 动态填充 -->
+            <!-- 选中服务的详细信息 -->
+            <div class="detail-card" id="detailCard" style="display: none;">
+                <h2>服务详细信息</h2>
+                <div class="detail-tabs">
+                    <button class="tab-btn active" data-tab="health">健康检查</button>
+                    <button class="tab-btn" data-tab="info">基本信息</button>
                 </div>
-            </div>
-
-            <!-- 健康检查详情 -->
-            <div class="health-card" id="healthCard" style="display: none;">
-                <h2>健康检查详情</h2>
-                <div class="health-content" id="healthContent">
-                    <!-- 动态填充 -->
+                <div class="detail-content">
+                    <div class="tab-pane active" id="healthPane">
+                        <!-- 健康检查信息 -->
+                    </div>
+                    <div class="tab-pane" id="infoPane">
+                        <!-- 基本信息 -->
+                    </div>
                 </div>
-            </div>
-
-            <!-- 控制按钮 -->
-            <div class="controls">
-                <button class="btn btn-primary" id="checkNowBtn" onclick="checkConnection()">
-                    🔄 立即检测
-                </button>
-                <button class="btn btn-secondary" id="toggleAutoBtn" onclick="toggleAutoCheck()">
-                    ⏸️ 停止自动检测
-                </button>
             </div>
 
             <!-- 日志区域 -->
             <div class="log-card">
-                <h2>检测日志</h2>
+                <div class="log-header">
+                    <h2>检测日志</h2>
+                    <button class="btn btn-sm btn-text" onclick="clearLogs()">清空</button>
+                </div>
                 <div class="log-content" id="logContent">
                     <div class="log-item">等待检测...</div>
                 </div>
