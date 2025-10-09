@@ -15,17 +15,17 @@
         
         <!-- 主导航标签 -->
         <nav class="main-nav">
-            <button class="nav-btn active" data-section="aicore" onclick="switchSection('aicore')">
-                🔗 AI-Core 监控
+            <button class="nav-btn active" data-section="services" onclick="switchSection('services')">
+                🔗 服务管理
             </button>
-            <button class="nav-btn" data-section="ollama" onclick="switchSection('ollama')">
-                🤖 Ollama 测试
+            <button class="nav-btn" data-section="messages" onclick="switchSection('messages')">
+                💬 消息预设
             </button>
         </nav>
 
         <main>
-            <!-- AI-Core 部分 -->
-            <div id="aicoreSection" class="section active">
+            <!-- 服务管理部分 (AI-Core + Ollama) -->
+            <div id="servicesSection" class="section active">
                 <!-- 当前选中的连接 -->
                 <div class="selected-connection-card">
                     <div class="selected-header">
@@ -76,8 +76,6 @@
                 </div>
             </div>
 
-            <!-- Ollama 部分 -->
-            <div id="ollamaSection" class="section">
                 <!-- Ollama 配置列表 -->
                 <div class="services-card">
                     <div class="services-header">
@@ -108,6 +106,42 @@
                     <div class="test-result" id="testResult" style="display: none;">
                         <h3>测试结果</h3>
                         <div id="testResultContent"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 消息预设部分 -->
+            <div id="messagesSection" class="section">
+                <div class="messages-container">
+                    <!-- 左侧消息列表 -->
+                    <div class="messages-list-panel">
+                        <div class="panel-header">
+                            <h2>消息列表</h2>
+                            <button class="btn btn-sm btn-success" onclick="showAddMessageModal()">
+                                ➕ 新建消息
+                            </button>
+                        </div>
+                        <div class="messages-list" id="messagesList">
+                            <!-- 动态填充消息列表 -->
+                        </div>
+                    </div>
+
+                    <!-- 右侧消息详情 -->
+                    <div class="message-detail-panel">
+                        <div class="panel-header">
+                            <h2>消息详情</h2>
+                            <div class="detail-actions" id="messageActions" style="display: none;">
+                                <button class="btn btn-sm btn-primary" onclick="saveMessageContent()">
+                                    💾 保存
+                                </button>
+                                <button class="btn btn-sm btn-secondary" onclick="validateMessageContent()">
+                                    ✓ 校验
+                                </button>
+                            </div>
+                        </div>
+                        <div class="message-detail-content" id="messageDetailContent">
+                            <div class="empty-state">请从左侧选择一条消息</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -180,6 +214,42 @@
                 <div class="modal-footer">
                     <button class="btn btn-secondary" onclick="closeOllamaModal()">取消</button>
                     <button class="btn btn-primary" onclick="saveOllamaConfig()">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 添加消息预设模态框 -->
+        <div id="messageModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="messageModalTitle">新建消息</h2>
+                    <button class="modal-close" onclick="closeMessageModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>消息标题 *</label>
+                        <input type="text" id="messageTitle" placeholder="例如: 问候语">
+                    </div>
+                    <div class="form-group">
+                        <label>消息内容 *</label>
+                        <textarea id="messageContent" rows="6" placeholder="输入消息内容..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>消息类型</label>
+                        <select id="messageType">
+                            <option value="system">系统消息</option>
+                            <option value="user">用户消息</option>
+                            <option value="assistant">助手消息</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>标签 (可选)</label>
+                        <input type="text" id="messageTags" placeholder="例如: 问候, 通用">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeMessageModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveMessage()">保存</button>
                 </div>
             </div>
         </div>

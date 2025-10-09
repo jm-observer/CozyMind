@@ -2,11 +2,13 @@ let autoCheckInterval = null;
 let isAutoChecking = true;
 let aiCores = [];
 let ollamaConfigs = [];
+let messagePresets = [];
 let selectedCore = null;
 let selectedOllama = null;
+let selectedMessage = null;
 let editingCoreId = null;
 let editingOllamaId = null;
-let currentSection = 'aicore';
+let currentSection = 'services';
 
 // 页面加载时初始化
 window.addEventListener('DOMContentLoaded', () => {
@@ -34,15 +36,18 @@ function switchSection(section) {
         sec.classList.remove('active');
     });
     
-    if (section === 'aicore') {
-        document.getElementById('aicoreSection').classList.add('active');
+    if (section === 'services') {
+        document.getElementById('servicesSection').classList.add('active');
         if (aiCores.length === 0) {
             loadAICores();
         }
-    } else if (section === 'ollama') {
-        document.getElementById('ollamaSection').classList.add('active');
         if (ollamaConfigs.length === 0) {
             loadOllamaConfigs();
+        }
+    } else if (section === 'messages') {
+        document.getElementById('messagesSection').classList.add('active');
+        if (messagePresets.length === 0) {
+            loadMessages();
         }
     }
 }
@@ -807,4 +812,349 @@ function clearLogs() {
     const logContent = document.getElementById('logContent');
     logContent.innerHTML = '<div class="log-item">日志已清空</div>';
     addLog('🗑️ 日志已清空');
+}
+
+// ========== 消息预设功能 ==========
+
+// 加载消息列表
+async function loadMessages() {
+    try {
+        const response = await fetch('/api/messages');
+        const result = await response.json();
+        
+        if (result.success) {
+            messagePresets = result.data;
+            renderMessagesList();
+            addLog(`✅ 加载了 ${messagePresets.length} 条消息预设`);
+        }
+    } catch (error) {
+        addLog(`❌ 加载消息失败: ${error.message}`, 'error');
+    }
+}
+
+// 渲染消息列表
+function renderMessagesList() {
+    const messagesList = document.getElementById('messagesList');
+    
+    if (messagePresets.length === 0) {
+        messagesList.innerHTML = '<div class="empty-state">暂无消息预设</div>';
+        return;
+    }
+    
+    messagesList.innerHTML = messagePresets.map(msg => `
+        <div class="message-item ${selectedMessage?.id === msg.id ? 'active' : ''}" 
+             onclick="selectMessage(${msg.id})">
+            <div class="message-item-header">
+                <h4>${msg.title}</h4>
+                <span class="message-type-badge ${msg.type}">${getTypeLabel(msg.type)}</span>
+            </div>
+            <div class="message-item-preview">${truncate(msg.content, 60)}</div>
+            <div class="message-item-meta">
+                ${msg.tags ? `<span class="tags">🏷️ ${msg.tags}</span>` : ''}
+                <span class="date">${formatDate(msg.updatedAt)}</span>
+            </div>
+            <div class="message-item-actions">
+                <button class="btn-icon" onclick="event.stopPropagation(); editMessage(${msg.id})" title="编辑">
+                    ✏️
+                </button>
+                <button class="btn-icon" onclick="event.stopPropagation(); deleteMessage(${msg.id})" title="删除">
+                    🗑️
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 选择消息
+function selectMessage(messageId) {
+    const message = messagePresets.find(m => m.id === messageId);
+    if (!message) return;
+    
+    selectedMessage = message;
+    
+    // 更新列表选中状态
+    document.querySelectorAll('.message-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    event.currentTarget?.classList.add('active');
+    
+    // 显示消息详情
+    displayMessageDetail(message);
+    
+    addLog(`📄 已选择消息: ${message.title}`);
+}
+
+// 显示消息详情
+function displayMessageDetail(message) {
+    const detailContent = document.getElementById('messageDetailContent');
+    const messageActions = document.getElementById('messageActions');
+    
+    messageActions.style.display = 'flex';
+    
+    detailContent.innerHTML = `
+        <div class="message-detail-form">
+            <div class="form-group">
+                <label>消息标题</label>
+                <input type="text" id="detailTitle" value="${message.title}" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>消息类型</label>
+                <select id="detailType" class="form-control">
+                    <option value="system" ${message.type === 'system' ? 'selected' : ''}>系统消息</option>
+                    <option value="user" ${message.type === 'user' ? 'selected' : ''}>用户消息</option>
+                    <option value="assistant" ${message.type === 'assistant' ? 'selected' : ''}>助手消息</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>消息内容</label>
+                <textarea id="detailContent" rows="12" class="form-control">${message.content}</textarea>
+            </div>
+            <div class="form-group">
+                <label>标签</label>
+                <input type="text" id="detailTags" value="${message.tags || ''}" class="form-control" placeholder="多个标签用逗号分隔">
+            </div>
+            <div class="message-meta">
+                <div class="meta-item">
+                    <strong>创建时间:</strong> ${formatDateTime(message.createdAt)}
+                </div>
+                <div class="meta-item">
+                    <strong>更新时间:</strong> ${formatDateTime(message.updatedAt)}
+                </div>
+            </div>
+        </div>
+        <div id="validationResult" class="validation-result" style="display: none;"></div>
+    `;
+}
+
+// 保存消息内容（更新右侧详情中修改的内容）
+async function saveMessageContent() {
+    if (!selectedMessage) {
+        alert('请先选择一条消息');
+        return;
+    }
+    
+    const title = document.getElementById('detailTitle').value.trim();
+    const type = document.getElementById('detailType').value;
+    const content = document.getElementById('detailContent').value.trim();
+    const tags = document.getElementById('detailTags').value.trim();
+    
+    if (!title || !content) {
+        alert('标题和内容不能为空');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/messages/${selectedMessage.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, content, type, tags })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            addLog(`✅ 保存成功: ${title}`, 'success');
+            await loadMessages();
+            // 重新选择以刷新显示
+            selectMessage(selectedMessage.id);
+        } else {
+            addLog(`❌ 保存失败: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 保存失败: ${error.message}`, 'error');
+    }
+}
+
+// 校验消息内容
+async function validateMessageContent() {
+    if (!selectedMessage) {
+        alert('请先选择一条消息');
+        return;
+    }
+    
+    const content = document.getElementById('detailContent').value.trim();
+    
+    try {
+        const response = await fetch('/api/messages/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        });
+        
+        const result = await response.json();
+        
+        const validationResult = document.getElementById('validationResult');
+        validationResult.style.display = 'block';
+        
+        if (result.success && result.valid) {
+            validationResult.className = 'validation-result success';
+            validationResult.innerHTML = `
+                <h4>✓ 校验通过</h4>
+                <div class="validation-info">
+                    <div>字符数: ${result.info.length}</div>
+                    <div>行数: ${result.info.lines}</div>
+                    <div>单词数: ${result.info.words}</div>
+                </div>
+            `;
+            addLog('✓ 内容校验通过', 'success');
+        } else {
+            validationResult.className = 'validation-result error';
+            validationResult.innerHTML = `
+                <h4>✗ 校验失败</h4>
+                <ul class="error-list">
+                    ${result.errors.map(err => `<li>${err}</li>`).join('')}
+                </ul>
+            `;
+            addLog('✗ 内容校验失败', 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 校验失败: ${error.message}`, 'error');
+    }
+}
+
+// 显示新建消息模态框
+function showAddMessageModal() {
+    document.getElementById('messageModalTitle').textContent = '新建消息';
+    document.getElementById('messageTitle').value = '';
+    document.getElementById('messageContent').value = '';
+    document.getElementById('messageType').value = 'user';
+    document.getElementById('messageTags').value = '';
+    document.getElementById('messageModal').style.display = 'flex';
+}
+
+// 编辑消息（通过模态框）
+function editMessage(messageId) {
+    const message = messagePresets.find(m => m.id === messageId);
+    if (!message) return;
+    
+    selectedMessage = message;
+    document.getElementById('messageModalTitle').textContent = '编辑消息';
+    document.getElementById('messageTitle').value = message.title;
+    document.getElementById('messageContent').value = message.content;
+    document.getElementById('messageType').value = message.type;
+    document.getElementById('messageTags').value = message.tags || '';
+    document.getElementById('messageModal').style.display = 'flex';
+}
+
+// 关闭消息模态框
+function closeMessageModal() {
+    document.getElementById('messageModal').style.display = 'none';
+}
+
+// 保存消息（模态框）
+async function saveMessage() {
+    const title = document.getElementById('messageTitle').value.trim();
+    const content = document.getElementById('messageContent').value.trim();
+    const type = document.getElementById('messageType').value;
+    const tags = document.getElementById('messageTags').value.trim();
+    
+    if (!title || !content) {
+        alert('标题和内容不能为空');
+        return;
+    }
+    
+    try {
+        let response;
+        if (selectedMessage && document.getElementById('messageModalTitle').textContent === '编辑消息') {
+            // 更新
+            response = await fetch(`/api/messages/${selectedMessage.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content, type, tags })
+            });
+        } else {
+            // 新建
+            response = await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content, type, tags })
+            });
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            addLog(`✅ ${selectedMessage ? '更新' : '创建'}消息成功: ${title}`, 'success');
+            closeMessageModal();
+            await loadMessages();
+            
+            // 如果是新创建的，自动选中
+            if (!selectedMessage) {
+                selectMessage(result.data.id);
+            }
+        } else {
+            addLog(`❌ 操作失败: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 操作失败: ${error.message}`, 'error');
+    }
+}
+
+// 删除消息
+async function deleteMessage(messageId) {
+    const message = messagePresets.find(m => m.id === messageId);
+    if (!message) return;
+    
+    if (!confirm(`确定要删除消息 "${message.title}" 吗？`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/messages/${messageId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            addLog(`✅ 删除消息成功: ${message.title}`, 'success');
+            
+            // 如果删除的是当前选中的消息，清空右侧
+            if (selectedMessage?.id === messageId) {
+                selectedMessage = null;
+                document.getElementById('messageDetailContent').innerHTML = '<div class="empty-state">请从左侧选择一条消息</div>';
+                document.getElementById('messageActions').style.display = 'none';
+            }
+            
+            await loadMessages();
+        } else {
+            addLog(`❌ 删除失败: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 删除失败: ${error.message}`, 'error');
+    }
+}
+
+// ========== 工具函数 ==========
+
+function getTypeLabel(type) {
+    const labels = {
+        'system': '系统',
+        'user': '用户',
+        'assistant': '助手'
+    };
+    return labels[type] || type;
+}
+
+function truncate(str, maxLen) {
+    if (str.length <= maxLen) return str;
+    return str.substring(0, maxLen) + '...';
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return '刚刚';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)}天前`;
+    
+    return date.toLocaleDateString('zh-CN');
+}
+
+function formatDateTime(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString('zh-CN');
 }

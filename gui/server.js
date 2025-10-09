@@ -17,8 +17,31 @@ let OLLAMA_CONFIGS = [
     { id: 1, name: 'Ollama 本地', url: 'http://localhost:11434', model: 'llama2', description: '本地Ollama服务' }
 ];
 
+// 消息预设列表
+let MESSAGE_PRESETS = [
+    { 
+        id: 1, 
+        title: '系统提示词', 
+        content: 'You are a helpful AI assistant. Please provide clear and concise answers.', 
+        type: 'system',
+        tags: '系统, 通用',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    },
+    { 
+        id: 2, 
+        title: '友好问候', 
+        content: 'Hello! How can I help you today?', 
+        type: 'assistant',
+        tags: '问候, 开场',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    }
+];
+
 let nextCoreId = 4;
 let nextOllamaId = 2;
+let nextMessageId = 3;
 
 // 静态文件服务
 app.use(express.static('public'));
@@ -396,10 +419,152 @@ app.post('/api/ollama-status', async (req, res) => {
     }
 });
 
+// ========== 消息预设 API ==========
+
+// API: 获取所有消息预设
+app.get('/api/messages', (req, res) => {
+    res.json({
+        success: true,
+        data: MESSAGE_PRESETS
+    });
+});
+
+// API: 获取单个消息预设
+app.get('/api/messages/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const message = MESSAGE_PRESETS.find(m => m.id === id);
+    
+    if (!message) {
+        return res.status(404).json({
+            success: false,
+            error: 'Message not found'
+        });
+    }
+    
+    res.json({
+        success: true,
+        data: message
+    });
+});
+
+// API: 添加消息预设
+app.post('/api/messages', (req, res) => {
+    const { title, content, type, tags } = req.body;
+    
+    if (!title || !content) {
+        return res.status(400).json({
+            success: false,
+            error: 'Title and content are required'
+        });
+    }
+    
+    const newMessage = {
+        id: nextMessageId++,
+        title,
+        content,
+        type: type || 'user',
+        tags: tags || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+    
+    MESSAGE_PRESETS.push(newMessage);
+    
+    res.json({
+        success: true,
+        data: newMessage
+    });
+});
+
+// API: 更新消息预设
+app.put('/api/messages/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const { title, content, type, tags } = req.body;
+    
+    const index = MESSAGE_PRESETS.findIndex(m => m.id === id);
+    
+    if (index === -1) {
+        return res.status(404).json({
+            success: false,
+            error: 'Message not found'
+        });
+    }
+    
+    if (title) MESSAGE_PRESETS[index].title = title;
+    if (content) MESSAGE_PRESETS[index].content = content;
+    if (type) MESSAGE_PRESETS[index].type = type;
+    if (tags !== undefined) MESSAGE_PRESETS[index].tags = tags;
+    MESSAGE_PRESETS[index].updatedAt = new Date().toISOString();
+    
+    res.json({
+        success: true,
+        data: MESSAGE_PRESETS[index]
+    });
+});
+
+// API: 删除消息预设
+app.delete('/api/messages/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    
+    const index = MESSAGE_PRESETS.findIndex(m => m.id === id);
+    
+    if (index === -1) {
+        return res.status(404).json({
+            success: false,
+            error: 'Message not found'
+        });
+    }
+    
+    MESSAGE_PRESETS.splice(index, 1);
+    
+    res.json({
+        success: true,
+        message: 'Message deleted successfully'
+    });
+});
+
+// API: 校验消息内容
+app.post('/api/messages/validate', (req, res) => {
+    const { content } = req.body;
+    
+    if (!content) {
+        return res.json({
+            success: false,
+            valid: false,
+            errors: ['内容不能为空']
+        });
+    }
+    
+    const errors = [];
+    
+    // 基本校验
+    if (content.length < 1) {
+        errors.push('内容长度不能为空');
+    }
+    
+    if (content.length > 10000) {
+        errors.push('内容长度不能超过10000字符');
+    }
+    
+    // 可以添加更多校验规则
+    
+    res.json({
+        success: true,
+        valid: errors.length === 0,
+        errors: errors,
+        info: {
+            length: content.length,
+            lines: content.split('\n').length,
+            words: content.split(/\s+/).length
+        }
+    });
+});
+
 app.listen(PORT, () => {
     console.log('🚀 CozyMind GUI Server started');
     console.log(`📡 Server running at http://localhost:${PORT}`);
     console.log(`🔗 Monitoring ${AI_CORE_URLS.length} AI-Core services`);
     console.log(`🤖 Configured ${OLLAMA_CONFIGS.length} Ollama instances`);
+    console.log(`💬 Loaded ${MESSAGE_PRESETS.length} message presets`);
 });
 
