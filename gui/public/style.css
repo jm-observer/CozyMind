@@ -91,6 +91,8 @@ main {
     padding: 20px;
     margin-bottom: 20px;
     color: white;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .selected-header {
@@ -129,6 +131,8 @@ main {
     padding: 20px;
     margin-bottom: 20px;
     min-height: 200px;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .services-header {
@@ -292,6 +296,8 @@ main {
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 20px;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .detail-card h2 {
@@ -488,6 +494,8 @@ main {
     border-radius: 12px;
     padding: 20px;
     min-height: 200px;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .log-header {
@@ -724,6 +732,8 @@ footer {
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 20px;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .ollama-test-card h2 {
