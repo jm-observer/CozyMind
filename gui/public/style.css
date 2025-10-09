@@ -65,6 +65,7 @@ header h1 {
     background: white;
     border-color: #667eea;
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    transform: translateY(-2px);
 }
 
 /* 部分切换 */
@@ -127,6 +128,7 @@ main {
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 20px;
+    min-height: 200px;
 }
 
 .services-header {
@@ -485,6 +487,7 @@ main {
     background: #f8f9fa;
     border-radius: 12px;
     padding: 20px;
+    min-height: 200px;
 }
 
 .log-header {
@@ -820,7 +823,7 @@ footer {
     display: grid;
     grid-template-columns: 380px 1fr;
     gap: 20px;
-    height: calc(100vh - 400px);
+    height: calc(100vh - 300px);
     min-height: 600px;
 }
 

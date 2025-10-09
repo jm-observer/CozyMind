@@ -36,8 +36,12 @@ function switchSection(section) {
         sec.classList.remove('active');
     });
     
+    // 控制日志区域的显示
+    const logCard = document.getElementById('logCard');
+    
     if (section === 'services') {
         document.getElementById('servicesSection').classList.add('active');
+        logCard.style.display = 'block';
         if (aiCores.length === 0) {
             loadAICores();
         }
@@ -46,6 +50,7 @@ function switchSection(section) {
         }
     } else if (section === 'messages') {
         document.getElementById('messagesSection').classList.add('active');
+        logCard.style.display = 'none';
         if (messagePresets.length === 0) {
             loadMessages();
         }
