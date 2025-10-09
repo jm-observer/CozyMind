@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CozyMind - AI-Core 连接监控</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 CozyMind</h1>
+            <p class="subtitle">AI-Core 连接监控面板</p>
+        </header>
+
+        <main>
+            <!-- 连接状态卡片 -->
+            <div class="status-card">
+                <div class="status-header">
+                    <h2>连接状态</h2>
+                    <div class="status-indicator" id="statusIndicator">
+                        <span class="status-dot checking"></span>
+                        <span class="status-text">检测中...</span>
+                    </div>
+                </div>
+                
+                <div class="status-details" id="statusDetails">
+                    <div class="detail-item">
+                        <span class="label">服务地址:</span>
+                        <span class="value">http://127.0.0.1:9800</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">最后检测:</span>
+                        <span class="value" id="lastCheck">--</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">响应时间:</span>
+                        <span class="value" id="responseTime">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI-Core 信息卡片 -->
+            <div class="info-card" id="infoCard" style="display: none;">
+                <h2>AI-Core 信息</h2>
+                <div class="info-content" id="infoContent">
+                    <!-- 动态填充 -->
+                </div>
+            </div>
+
+            <!-- 健康检查详情 -->
+            <div class="health-card" id="healthCard" style="display: none;">
+                <h2>健康检查详情</h2>
+                <div class="health-content" id="healthContent">
+                    <!-- 动态填充 -->
+                </div>
+            </div>
+
+            <!-- 控制按钮 -->
+            <div class="controls">
+                <button class="btn btn-primary" id="checkNowBtn" onclick="checkConnection()">
+                    🔄 立即检测
+                </button>
+                <button class="btn btn-secondary" id="toggleAutoBtn" onclick="toggleAutoCheck()">
+                    ⏸️ 停止自动检测
+                </button>
+            </div>
+
+            <!-- 日志区域 -->
+            <div class="log-card">
+                <h2>检测日志</h2>
+                <div class="log-content" id="logContent">
+                    <div class="log-item">等待检测...</div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>CozyMind v0.1.0 | 自动检测间隔: 5秒</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
