@@ -1,14 +1,53 @@
 let autoCheckInterval = null;
 let isAutoChecking = true;
 let aiCores = [];
+let ollamaConfigs = [];
 let selectedCore = null;
+let selectedOllama = null;
+let editingCoreId = null;
+let editingOllamaId = null;
+let currentSection = 'aicore';
 
 // 页面加载时初始化
 window.addEventListener('DOMContentLoaded', () => {
-    addLog('应用启动，加载 AI-Core 服务列表...');
+    addLog('应用启动，加载配置...');
     initTabSwitching();
     loadAICores();
+    loadOllamaConfigs();
 });
+
+// ========== 部分切换 ==========
+
+function switchSection(section) {
+    currentSection = section;
+    
+    // 切换导航按钮状态
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.section === section) {
+            btn.classList.add('active');
+        }
+    });
+    
+    // 切换内容区域
+    document.querySelectorAll('.section').forEach(sec => {
+        sec.classList.remove('active');
+    });
+    
+    if (section === 'aicore') {
+        document.getElementById('aicoreSection').classList.add('active');
+        if (aiCores.length === 0) {
+            loadAICores();
+        }
+    } else if (section === 'ollama') {
+        document.getElementById('ollamaSection').classList.add('active');
+        if (ollamaConfigs.length === 0) {
+            loadOllamaConfigs();
+        }
+    }
+}
+
+// ========== AI-Core 功能 ==========
 
 // 加载所有 AI-Core 配置
 async function loadAICores() {
@@ -31,6 +70,11 @@ async function loadAICores() {
 // 渲染服务列表
 function renderServices() {
     const servicesGrid = document.getElementById('servicesGrid');
+    
+    if (aiCores.length === 0) {
+        servicesGrid.innerHTML = '<div class="empty-state">暂无服务配置，点击"添加服务"开始</div>';
+        return;
+    }
     
     servicesGrid.innerHTML = aiCores.map(core => `
         <div class="service-item ${selectedCore?.id === core.id ? 'selected' : ''}" 
@@ -64,6 +108,12 @@ function renderServices() {
                 <button class="btn btn-sm btn-primary" onclick="selectConnection(${core.id})">
                     ✓ 选择使用
                 </button>
+                <button class="btn btn-sm btn-warning" onclick="editCore(${core.id})">
+                    ✏️ 编辑
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteCore(${core.id})">
+                    🗑️ 删除
+                </button>
             </div>
         </div>
     `).join('');
@@ -71,6 +121,8 @@ function renderServices() {
 
 // 检测所有连接
 async function checkAllConnections() {
+    if (aiCores.length === 0) return;
+    
     try {
         const response = await fetch('/api/check-all');
         const result = await response.json();
@@ -155,7 +207,10 @@ async function selectConnection(coreId) {
     document.querySelectorAll('.service-item').forEach(item => {
         item.classList.remove('selected');
     });
-    document.getElementById(`service-${coreId}`).classList.add('selected');
+    const serviceItem = document.getElementById(`service-${coreId}`);
+    if (serviceItem) {
+        serviceItem.classList.add('selected');
+    }
     
     // 更新选中信息显示
     const selectedInfo = document.getElementById('selectedInfo');
@@ -245,6 +300,398 @@ async function updateDetailInfo(core) {
     }
 }
 
+// AI-Core 模态框操作
+function showAddCoreModal() {
+    editingCoreId = null;
+    document.getElementById('coreModalTitle').textContent = '添加 AI-Core 服务';
+    document.getElementById('coreName').value = '';
+    document.getElementById('coreUrl').value = '';
+    document.getElementById('coreDescription').value = '';
+    document.getElementById('coreModal').style.display = 'flex';
+}
+
+function editCore(coreId) {
+    const core = aiCores.find(c => c.id === coreId);
+    if (!core) return;
+    
+    editingCoreId = coreId;
+    document.getElementById('coreModalTitle').textContent = '编辑 AI-Core 服务';
+    document.getElementById('coreName').value = core.name;
+    document.getElementById('coreUrl').value = core.url;
+    document.getElementById('coreDescription').value = core.description;
+    document.getElementById('coreModal').style.display = 'flex';
+}
+
+function closeCoreModal() {
+    document.getElementById('coreModal').style.display = 'none';
+    editingCoreId = null;
+}
+
+async function saveCoreConfig() {
+    const name = document.getElementById('coreName').value.trim();
+    const url = document.getElementById('coreUrl').value.trim();
+    const description = document.getElementById('coreDescription').value.trim();
+    
+    if (!name || !url) {
+        alert('请填写服务名称和地址');
+        return;
+    }
+    
+    try {
+        let response;
+        if (editingCoreId) {
+            // 更新
+            response = await fetch(`/api/ai-cores/${editingCoreId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, url, description })
+            });
+        } else {
+            // 添加
+            response = await fetch('/api/ai-cores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, url, description })
+            });
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            addLog(`✅ ${editingCoreId ? '更新' : '添加'}服务成功: ${name}`, 'success');
+            closeCoreModal();
+            await loadAICores();
+        } else {
+            addLog(`❌ 操作失败: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 操作失败: ${error.message}`, 'error');
+    }
+}
+
+async function deleteCore(coreId) {
+    const core = aiCores.find(c => c.id === coreId);
+    if (!core) return;
+    
+    if (!confirm(`确定要删除 "${core.name}" 吗？`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/ai-cores/${coreId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            addLog(`✅ 删除服务成功: ${core.name}`, 'success');
+            if (selectedCore?.id === coreId) {
+                selectedCore = null;
+                document.getElementById('detailCard').style.display = 'none';
+                document.getElementById('selectedInfo').innerHTML = '<span class="selected-name">未选择</span>';
+            }
+            await loadAICores();
+        } else {
+            addLog(`❌ 删除失败: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 删除失败: ${error.message}`, 'error');
+    }
+}
+
+// ========== Ollama 功能 ==========
+
+// 加载 Ollama 配置
+async function loadOllamaConfigs() {
+    try {
+        const response = await fetch('/api/ollama-configs');
+        const result = await response.json();
+        
+        if (result.success) {
+            ollamaConfigs = result.data;
+            renderOllamaConfigs();
+            addLog(`✅ 加载了 ${ollamaConfigs.length} 个 Ollama 配置`);
+        }
+    } catch (error) {
+        addLog(`❌ 加载 Ollama 配置失败: ${error.message}`, 'error');
+    }
+}
+
+// 渲染 Ollama 配置列表
+function renderOllamaConfigs() {
+    const ollamaGrid = document.getElementById('ollamaGrid');
+    
+    if (ollamaConfigs.length === 0) {
+        ollamaGrid.innerHTML = '<div class="empty-state">暂无Ollama配置，点击"添加配置"开始</div>';
+        return;
+    }
+    
+    ollamaGrid.innerHTML = ollamaConfigs.map(config => `
+        <div class="service-item ${selectedOllama?.id === config.id ? 'selected' : ''}" 
+             id="ollama-${config.id}">
+            <div class="service-header">
+                <div class="service-title">
+                    <h3>${config.name}</h3>
+                    <span class="badge badge-info">${config.model}</span>
+                </div>
+            </div>
+            <div class="service-body">
+                <div class="service-description">${config.description}</div>
+                <div class="service-url">${config.url}</div>
+            </div>
+            <div class="service-actions">
+                <button class="btn btn-sm btn-outline" onclick="checkOllamaStatus(${config.id})">
+                    🔍 检查状态
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="selectOllama(${config.id})">
+                    🚀 测试模型
+                </button>
+                <button class="btn btn-sm btn-warning" onclick="editOllama(${config.id})">
+                    ✏️ 编辑
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteOllama(${config.id})">
+                    🗑️ 删除
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 选择 Ollama 配置进行测试
+function selectOllama(configId) {
+    const config = ollamaConfigs.find(c => c.id === configId);
+    if (!config) return;
+    
+    selectedOllama = config;
+    
+    // 更新选中状态
+    document.querySelectorAll('#ollamaGrid .service-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.getElementById(`ollama-${configId}`).classList.add('selected');
+    
+    // 显示测试卡片
+    document.getElementById('ollamaTestCard').style.display = 'block';
+    document.getElementById('testResult').style.display = 'none';
+    
+    addLog(`✓ 已选择配置: ${config.name} (${config.model})`, 'success');
+}
+
+// 检查 Ollama 状态
+async function checkOllamaStatus(configId) {
+    const config = ollamaConfigs.find(c => c.id === configId);
+    if (!config) return;
+    
+    addLog(`🔍 检查 ${config.name} 状态...`);
+    
+    try {
+        const response = await fetch('/api/ollama-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: config.url })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.connected) {
+            addLog(`✅ ${config.name} 在线 - 响应时间: ${result.responseTime}ms`, 'success');
+        } else {
+            addLog(`❌ ${config.name} 离线 - ${result.error}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 检查失败: ${error.message}`, 'error');
+    }
+}
+
+// 运行 Ollama 测试
+async function runOllamaTest() {
+    if (!selectedOllama) {
+        alert('请先选择一个配置');
+        return;
+    }
+    
+    const prompt = document.getElementById('testPrompt').value.trim();
+    if (!prompt) {
+        alert('请输入测试提示词');
+        return;
+    }
+    
+    const testResult = document.getElementById('testResult');
+    const testResultContent = document.getElementById('testResultContent');
+    
+    testResult.style.display = 'block';
+    testResultContent.innerHTML = '<div class="loading">🔄 正在请求 Ollama 生成响应...</div>';
+    
+    addLog(`🚀 开始测试 ${selectedOllama.name} (${selectedOllama.model})...`);
+    
+    try {
+        const response = await fetch('/api/ollama-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: selectedOllama.url,
+                model: selectedOllama.model,
+                prompt: prompt
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.connected) {
+            const data = result.data;
+            testResultContent.innerHTML = `
+                <div class="test-success">
+                    <div class="test-info">
+                        <span class="badge badge-success">成功</span>
+                        <span>响应时间: ${result.responseTime}ms</span>
+                    </div>
+                    <div class="test-response">
+                        <h4>模型响应:</h4>
+                        <div class="response-text">${data.response}</div>
+                    </div>
+                    <div class="test-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">模型:</span>
+                            <span class="stat-value">${data.model}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">提示词 Token:</span>
+                            <span class="stat-value">${data.prompt_eval_count || 'N/A'}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">生成 Token:</span>
+                            <span class="stat-value">${data.eval_count || 'N/A'}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            addLog(`✅ 测试成功 - 响应时间: ${result.responseTime}ms`, 'success');
+        } else {
+            testResultContent.innerHTML = `
+                <div class="test-error">
+                    <span class="badge badge-danger">失败</span>
+                    <p>${result.error}</p>
+                    ${result.errorDetails ? `<pre>${JSON.stringify(result.errorDetails, null, 2)}</pre>` : ''}
+                </div>
+            `;
+            addLog(`❌ 测试失败 - ${result.error}`, 'error');
+        }
+    } catch (error) {
+        testResultContent.innerHTML = `
+            <div class="test-error">
+                <span class="badge badge-danger">错误</span>
+                <p>${error.message}</p>
+            </div>
+        `;
+        addLog(`❌ 测试失败: ${error.message}`, 'error');
+    }
+}
+
+// Ollama 模态框操作
+function showAddOllamaModal() {
+    editingOllamaId = null;
+    document.getElementById('ollamaModalTitle').textContent = '添加 Ollama 配置';
+    document.getElementById('ollamaName').value = '';
+    document.getElementById('ollamaUrl').value = '';
+    document.getElementById('ollamaModel').value = '';
+    document.getElementById('ollamaDescription').value = '';
+    document.getElementById('ollamaModal').style.display = 'flex';
+}
+
+function editOllama(configId) {
+    const config = ollamaConfigs.find(c => c.id === configId);
+    if (!config) return;
+    
+    editingOllamaId = configId;
+    document.getElementById('ollamaModalTitle').textContent = '编辑 Ollama 配置';
+    document.getElementById('ollamaName').value = config.name;
+    document.getElementById('ollamaUrl').value = config.url;
+    document.getElementById('ollamaModel').value = config.model;
+    document.getElementById('ollamaDescription').value = config.description;
+    document.getElementById('ollamaModal').style.display = 'flex';
+}
+
+function closeOllamaModal() {
+    document.getElementById('ollamaModal').style.display = 'none';
+    editingOllamaId = null;
+}
+
+async function saveOllamaConfig() {
+    const name = document.getElementById('ollamaName').value.trim();
+    const url = document.getElementById('ollamaUrl').value.trim();
+    const model = document.getElementById('ollamaModel').value.trim();
+    const description = document.getElementById('ollamaDescription').value.trim();
+    
+    if (!name || !url || !model) {
+        alert('请填写配置名称、地址和模型名称');
+        return;
+    }
+    
+    try {
+        let response;
+        if (editingOllamaId) {
+            // 更新
+            response = await fetch(`/api/ollama-configs/${editingOllamaId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, url, model, description })
+            });
+        } else {
+            // 添加
+            response = await fetch('/api/ollama-configs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, url, model, description })
+            });
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            addLog(`✅ ${editingOllamaId ? '更新' : '添加'}配置成功: ${name}`, 'success');
+            closeOllamaModal();
+            await loadOllamaConfigs();
+        } else {
+            addLog(`❌ 操作失败: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 操作失败: ${error.message}`, 'error');
+    }
+}
+
+async function deleteOllama(configId) {
+    const config = ollamaConfigs.find(c => c.id === configId);
+    if (!config) return;
+    
+    if (!confirm(`确定要删除 "${config.name}" 吗？`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/ollama-configs/${configId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            addLog(`✅ 删除配置成功: ${config.name}`, 'success');
+            if (selectedOllama?.id === configId) {
+                selectedOllama = null;
+                document.getElementById('ollamaTestCard').style.display = 'none';
+            }
+            await loadOllamaConfigs();
+        } else {
+            addLog(`❌ 删除失败: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 删除失败: ${error.message}`, 'error');
+    }
+}
+
+// ========== 通用功能 ==========
+
 // 标签页切换
 function initTabSwitching() {
     document.addEventListener('click', (e) => {
@@ -269,6 +716,13 @@ function initTabSwitching() {
             }
         }
     });
+    
+    // 点击模态框背景关闭
+    window.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = 'none';
+        }
+    });
 }
 
 // 开始自动检测
@@ -278,7 +732,9 @@ function startAutoCheck() {
     }
     
     autoCheckInterval = setInterval(() => {
-        checkAllConnections();
+        if (currentSection === 'aicore') {
+            checkAllConnections();
+        }
     }, 5000); // 每5秒检测一次
     
     isAutoChecking = true;
@@ -304,17 +760,21 @@ function toggleAutoCheck() {
     } else {
         startAutoCheck();
         addLog('▶️ 自动检测已启动');
-        checkAllConnections();
+        if (currentSection === 'aicore') {
+            checkAllConnections();
+        }
     }
 }
 
 // 更新切换按钮
 function updateToggleButton() {
     const toggleBtn = document.getElementById('toggleAutoBtn');
-    if (isAutoChecking) {
-        toggleBtn.textContent = '⏸️ 停止自动';
-    } else {
-        toggleBtn.textContent = '▶️ 启动自动';
+    if (toggleBtn) {
+        if (isAutoChecking) {
+            toggleBtn.textContent = '⏸️ 停止自动';
+        } else {
+            toggleBtn.textContent = '▶️ 启动自动';
+        }
     }
 }
 

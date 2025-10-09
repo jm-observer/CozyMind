@@ -20,7 +20,7 @@ body {
 header {
     text-align: center;
     color: white;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     padding: 20px;
 }
 
@@ -33,6 +33,47 @@ header h1 {
 .subtitle {
     font-size: 1.1rem;
     opacity: 0.9;
+}
+
+/* 主导航 */
+.main-nav {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.nav-btn {
+    padding: 12px 30px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid transparent;
+    border-radius: 25px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #667eea;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.nav-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.nav-btn.active {
+    background: white;
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* 部分切换 */
+.section {
+    display: none;
+}
+
+.section.active {
+    display: block;
 }
 
 main {
@@ -375,6 +416,39 @@ main {
     box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
 }
 
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+}
+
+.btn-warning {
+    background: #ffc107;
+    color: #333;
+}
+
+.btn-warning:hover {
+    background: #e0a800;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
 .btn-outline {
     background: white;
     color: #667eea;
@@ -533,4 +607,210 @@ footer {
 
 .log-content::-webkit-scrollbar-thumb:hover {
     background: #555;
+}
+
+/* 模态框 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    cursor: pointer;
+    color: #666;
+    line-height: 1;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+}
+
+.modal-close:hover {
+    color: #333;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+/* 表单 */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: border-color 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.form-group textarea {
+    resize: vertical;
+    font-family: inherit;
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+    font-size: 1rem;
+}
+
+/* Ollama 测试卡片 */
+.ollama-test-card {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.ollama-test-card h2 {
+    font-size: 1.3rem;
+    margin-bottom: 20px;
+}
+
+.test-form {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.test-result {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.test-success {
+    padding: 20px;
+}
+
+.test-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.test-response {
+    margin-bottom: 20px;
+}
+
+.test-response h4 {
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.response-text {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 3px solid #28a745;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.test-stats {
+    display: grid;
+    gap: 12px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+}
+
+.test-error {
+    padding: 20px;
+    color: #dc3545;
+}
+
+.test-error pre {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin-top: 10px;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    font-size: 1.1rem;
+    color: #667eea;
+}
+
+/* Badge 额外样式 */
+.badge-info {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+/* 服务动作按钮布局优化 */
+.service-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.service-actions .btn-sm {
+    width: 100%;
 }

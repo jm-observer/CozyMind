@@ -10,52 +10,104 @@
     <div class="container">
         <header>
             <h1>🧠 CozyMind</h1>
-            <p class="subtitle">AI-Core 连接监控面板</p>
+            <p class="subtitle">AI 服务管理与监控面板</p>
         </header>
+        
+        <!-- 主导航标签 -->
+        <nav class="main-nav">
+            <button class="nav-btn active" data-section="aicore" onclick="switchSection('aicore')">
+                🔗 AI-Core 监控
+            </button>
+            <button class="nav-btn" data-section="ollama" onclick="switchSection('ollama')">
+                🤖 Ollama 测试
+            </button>
+        </nav>
 
         <main>
-            <!-- 当前选中的连接 -->
-            <div class="selected-connection-card">
-                <div class="selected-header">
-                    <h2>当前选中连接</h2>
-                    <div class="selected-info" id="selectedInfo">
-                        <span class="selected-name">未选择</span>
+            <!-- AI-Core 部分 -->
+            <div id="aicoreSection" class="section active">
+                <!-- 当前选中的连接 -->
+                <div class="selected-connection-card">
+                    <div class="selected-header">
+                        <h2>当前选中连接</h2>
+                        <div class="selected-info" id="selectedInfo">
+                            <span class="selected-name">未选择</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI-Core 服务列表 -->
+                <div class="services-card">
+                    <div class="services-header">
+                        <h2>AI-Core 服务列表</h2>
+                        <div class="controls-inline">
+                            <button class="btn btn-sm btn-success" onclick="showAddCoreModal()">
+                                ➕ 添加服务
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="checkAllConnections()">
+                                🔄 检测所有
+                            </button>
+                            <button class="btn btn-sm btn-secondary" id="toggleAutoBtn" onclick="toggleAutoCheck()">
+                                ⏸️ 停止自动
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="services-grid" id="servicesGrid">
+                        <!-- 动态填充服务卡片 -->
+                    </div>
+                </div>
+
+                <!-- 选中服务的详细信息 -->
+                <div class="detail-card" id="detailCard" style="display: none;">
+                    <h2>服务详细信息</h2>
+                    <div class="detail-tabs">
+                        <button class="tab-btn active" data-tab="health">健康检查</button>
+                        <button class="tab-btn" data-tab="info">基本信息</button>
+                    </div>
+                    <div class="detail-content">
+                        <div class="tab-pane active" id="healthPane">
+                            <!-- 健康检查信息 -->
+                        </div>
+                        <div class="tab-pane" id="infoPane">
+                            <!-- 基本信息 -->
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- AI-Core 服务列表 -->
-            <div class="services-card">
-                <div class="services-header">
-                    <h2>AI-Core 服务列表</h2>
-                    <div class="controls-inline">
-                        <button class="btn btn-sm btn-primary" onclick="checkAllConnections()">
-                            🔄 检测所有
-                        </button>
-                        <button class="btn btn-sm btn-secondary" id="toggleAutoBtn" onclick="toggleAutoCheck()">
-                            ⏸️ 停止自动
+            <!-- Ollama 部分 -->
+            <div id="ollamaSection" class="section">
+                <!-- Ollama 配置列表 -->
+                <div class="services-card">
+                    <div class="services-header">
+                        <h2>Ollama 配置列表</h2>
+                        <button class="btn btn-sm btn-success" onclick="showAddOllamaModal()">
+                            ➕ 添加配置
                         </button>
                     </div>
+                    
+                    <div class="services-grid" id="ollamaGrid">
+                        <!-- 动态填充 Ollama 配置卡片 -->
+                    </div>
                 </div>
-                
-                <div class="services-grid" id="servicesGrid">
-                    <!-- 动态填充服务卡片 -->
-                </div>
-            </div>
 
-            <!-- 选中服务的详细信息 -->
-            <div class="detail-card" id="detailCard" style="display: none;">
-                <h2>服务详细信息</h2>
-                <div class="detail-tabs">
-                    <button class="tab-btn active" data-tab="health">健康检查</button>
-                    <button class="tab-btn" data-tab="info">基本信息</button>
-                </div>
-                <div class="detail-content">
-                    <div class="tab-pane active" id="healthPane">
-                        <!-- 健康检查信息 -->
+                <!-- Ollama 测试区域 -->
+                <div class="ollama-test-card" id="ollamaTestCard" style="display: none;">
+                    <h2>Ollama 模型测试</h2>
+                    <div class="test-form">
+                        <div class="form-group">
+                            <label>测试提示词</label>
+                            <textarea id="testPrompt" rows="4" placeholder="输入测试提示词...">Hello, this is a test. Please respond briefly.</textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="runOllamaTest()">
+                            🚀 运行测试
+                        </button>
                     </div>
-                    <div class="tab-pane" id="infoPane">
-                        <!-- 基本信息 -->
+                    
+                    <div class="test-result" id="testResult" style="display: none;">
+                        <h3>测试结果</h3>
+                        <div id="testResultContent"></div>
                     </div>
                 </div>
             </div>
@@ -63,14 +115,74 @@
             <!-- 日志区域 -->
             <div class="log-card">
                 <div class="log-header">
-                    <h2>检测日志</h2>
+                    <h2>操作日志</h2>
                     <button class="btn btn-sm btn-text" onclick="clearLogs()">清空</button>
                 </div>
                 <div class="log-content" id="logContent">
-                    <div class="log-item">等待检测...</div>
+                    <div class="log-item">等待操作...</div>
                 </div>
             </div>
         </main>
+
+        <!-- 添加/编辑 AI-Core 模态框 -->
+        <div id="coreModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="coreModalTitle">添加 AI-Core 服务</h2>
+                    <button class="modal-close" onclick="closeCoreModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>服务名称 *</label>
+                        <input type="text" id="coreName" placeholder="例如: AI-Core 主服务">
+                    </div>
+                    <div class="form-group">
+                        <label>服务地址 *</label>
+                        <input type="text" id="coreUrl" placeholder="例如: http://127.0.0.1:9800">
+                    </div>
+                    <div class="form-group">
+                        <label>服务描述</label>
+                        <input type="text" id="coreDescription" placeholder="简短描述">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeCoreModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveCoreConfig()">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 添加/编辑 Ollama 模态框 -->
+        <div id="ollamaModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="ollamaModalTitle">添加 Ollama 配置</h2>
+                    <button class="modal-close" onclick="closeOllamaModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>配置名称 *</label>
+                        <input type="text" id="ollamaName" placeholder="例如: Ollama 本地">
+                    </div>
+                    <div class="form-group">
+                        <label>服务地址 *</label>
+                        <input type="text" id="ollamaUrl" placeholder="例如: http://localhost:11434">
+                    </div>
+                    <div class="form-group">
+                        <label>模型名称 *</label>
+                        <input type="text" id="ollamaModel" placeholder="例如: llama2, mistral, qwen">
+                    </div>
+                    <div class="form-group">
+                        <label>配置描述</label>
+                        <input type="text" id="ollamaDescription" placeholder="简短描述">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeOllamaModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveOllamaConfig()">保存</button>
+                </div>
+            </div>
+        </div>
 
         <footer>
             <p>CozyMind v0.1.0 | 自动检测间隔: 5秒</p>
