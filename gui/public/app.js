@@ -42,18 +42,14 @@ function switchSection(section) {
     if (section === 'services') {
         document.getElementById('servicesSection').classList.add('active');
         logCard.style.display = 'block';
-        if (aiCores.length === 0) {
-            loadAICores();
-        }
-        if (ollamaConfigs.length === 0) {
-            loadOllamaConfigs();
-        }
+        // 每次切换到服务管理页面都重新加载最新数据
+        loadAICores();
+        loadOllamaConfigs();
     } else if (section === 'messages') {
         document.getElementById('messagesSection').classList.add('active');
         logCard.style.display = 'none';
-        if (messagePresets.length === 0) {
-            loadMessages();
-        }
+        // 每次切换到消息预设页面都重新加载最新数据
+        loadMessages();
     }
 }
 
@@ -121,9 +117,6 @@ function renderServices() {
                 <button class="btn btn-sm btn-warning" onclick="editCore(${core.id})">
                     ✏️ 编辑
                 </button>
-                <button class="btn btn-sm btn-danger" onclick="deleteCore(${core.id})">
-                    🗑️ 删除
-                </button>
             </div>
         </div>
     `).join('');
@@ -141,6 +134,15 @@ async function checkAllConnections() {
             result.data.forEach(core => {
                 updateServiceStatus(core);
             });
+            
+            // 自动选择第一个健康的服务
+            const healthyServices = result.data.filter(core => core.status === 'online');
+            if (healthyServices.length > 0 && !selectedCore) {
+                const firstHealthy = healthyServices[0];
+                selectConnection(firstHealthy.id);
+                addLog(`✅ 自动选择第一个健康服务: ${firstHealthy.name}`, 'success');
+            }
+            
             addLog(`✅ 完成所有服务检测`, 'success');
         }
     } catch (error) {
@@ -421,10 +423,62 @@ async function loadOllamaConfigs() {
         if (result.success) {
             ollamaConfigs = result.data;
             renderOllamaConfigs();
+            checkAllOllamaConfigs(); // 自动检查所有配置
             addLog(`✅ 加载了 ${ollamaConfigs.length} 个 Ollama 配置`);
         }
     } catch (error) {
         addLog(`❌ 加载 Ollama 配置失败: ${error.message}`, 'error');
+    }
+}
+
+// 检查所有 Ollama 配置
+async function checkAllOllamaConfigs() {
+    if (ollamaConfigs.length === 0) return;
+    
+    try {
+        const response = await fetch('/api/ollama-check-all');
+        const result = await response.json();
+        
+        if (result.success) {
+            result.data.forEach(config => {
+                updateOllamaStatus(config);
+            });
+            
+            // 自动选择第一个健康的配置
+            const healthyConfigs = result.data.filter(config => config.status === 'online');
+            if (healthyConfigs.length > 0 && !selectedOllama) {
+                const firstHealthy = healthyConfigs[0];
+                selectOllamaForUse(firstHealthy.id);
+                addLog(`✅ 自动选择第一个健康的 Ollama 配置: ${firstHealthy.name}`, 'success');
+            }
+            
+            addLog(`✅ 完成所有 Ollama 配置检测`, 'success');
+        }
+    } catch (error) {
+        addLog(`❌ Ollama 配置检测失败: ${error.message}`, 'error');
+    }
+}
+
+// 更新 Ollama 配置状态
+function updateOllamaStatus(config) {
+    // 更新状态显示
+    const statusElement = document.getElementById(`ollama-status-${config.id}`);
+    if (statusElement) {
+        statusElement.textContent = config.status === 'online' ? '在线' : '离线';
+        statusElement.className = `service-status ${config.status === 'online' ? 'online' : 'offline'}`;
+    }
+    
+    // 更新响应时间
+    const timeElement = document.getElementById(`ollama-time-${config.id}`);
+    if (timeElement) {
+        timeElement.textContent = `${config.responseTime}ms`;
+    }
+    
+    // 更新最后检测时间
+    const lastElement = document.getElementById(`ollama-last-${config.id}`);
+    if (lastElement) {
+        const time = new Date(config.timestamp).toLocaleTimeString();
+        lastElement.textContent = time;
     }
 }
 
@@ -443,25 +497,40 @@ function renderOllamaConfigs() {
             <div class="service-header">
                 <div class="service-title">
                     <h3>${config.name}</h3>
-                    <span class="badge badge-info">${config.model}</span>
+                    <div class="model-info">
+                        <span class="model-label">模型:</span>
+                        <span class="model-name">${config.model}</span>
+                    </div>
                 </div>
+                <div class="service-status" id="ollama-status-${config.id}">检测中...</div>
             </div>
             <div class="service-body">
                 <div class="service-description">${config.description}</div>
                 <div class="service-url">${config.url}</div>
+                <div class="service-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">模型:</span>
+                        <span class="stat-value model-badge">${config.model}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">响应时间:</span>
+                        <span class="stat-value response-time" id="ollama-time-${config.id}">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最后检测:</span>
+                        <span class="stat-value last-check" id="ollama-last-${config.id}">--</span>
+                    </div>
+                </div>
             </div>
             <div class="service-actions">
                 <button class="btn btn-sm btn-outline" onclick="checkOllamaStatus(${config.id})">
                     🔍 检查状态
                 </button>
-                <button class="btn btn-sm btn-primary" onclick="selectOllama(${config.id})">
-                    🚀 测试模型
+                <button class="btn btn-sm btn-primary" onclick="selectOllamaForUse(${config.id})">
+                    ✓ 选择使用
                 </button>
                 <button class="btn btn-sm btn-warning" onclick="editOllama(${config.id})">
                     ✏️ 编辑
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="deleteOllama(${config.id})">
-                    🗑️ 删除
                 </button>
             </div>
         </div>
@@ -469,6 +538,22 @@ function renderOllamaConfigs() {
 }
 
 // 选择 Ollama 配置进行测试
+// 选择 Ollama 配置进行使用
+function selectOllamaForUse(configId) {
+    const config = ollamaConfigs.find(c => c.id === configId);
+    if (!config) return;
+    
+    selectedOllama = config;
+    
+    // 更新选中状态
+    document.querySelectorAll('#ollamaGrid .service-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.getElementById(`ollama-${configId}`).classList.add('selected');
+    
+    addLog(`✓ 已选择 Ollama 配置: ${config.name} (${config.model})`, 'success');
+}
+
 function selectOllama(configId) {
     const config = ollamaConfigs.find(c => c.id === configId);
     if (!config) return;
@@ -499,7 +584,10 @@ async function checkOllamaStatus(configId) {
         const response = await fetch('/api/ollama-status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: config.url })
+            body: JSON.stringify({ 
+                url: config.url,
+                model: config.model
+            })
         });
         
         const result = await response.json();
@@ -558,7 +646,7 @@ async function runOllamaTest() {
                     </div>
                     <div class="test-response">
                         <h4>模型响应:</h4>
-                        <div class="response-text">${data.response}</div>
+                        <div class="response-text">${data.message || data.response || JSON.stringify(data.response)}</div>
                     </div>
                     <div class="test-stats">
                         <div class="stat-item">
@@ -566,12 +654,10 @@ async function runOllamaTest() {
                             <span class="stat-value">${data.model}</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">提示词 Token:</span>
-                            <span class="stat-value">${data.prompt_eval_count || 'N/A'}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">生成 Token:</span>
-                            <span class="stat-value">${data.eval_count || 'N/A'}</span>
+                            <span class="stat-label">完整响应:</span>
+                            <span class="stat-value">
+                                <pre style="font-size: 12px; max-height: 100px; overflow-y: auto;">${JSON.stringify(data.response, null, 2)}</pre>
+                            </span>
                         </div>
                     </div>
                 </div>

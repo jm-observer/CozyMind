@@ -124,8 +124,8 @@ app.post('/api/check-connection', async (req, res) => {
     const startTime = Date.now();
     
     try {
-        const response = await axios.get(`${url}/health`, {
-            timeout: 3000
+        const response = await axios.get(`${url}`, {
+            timeout: 5000
         });
         
         const responseTime = Date.now() - startTime;
@@ -159,8 +159,8 @@ app.get('/api/check-all', async (req, res) => {
             const startTime = Date.now();
             
             try {
-                const response = await axios.get(`${core.url}/health`, {
-                    timeout: 3000
+                const response = await axios.get(`${core.url}`, {
+                    timeout: 5000
                 });
                 
                 const responseTime = Date.now() - startTime;
@@ -208,7 +208,7 @@ app.post('/api/ai-core-info', async (req, res) => {
     
     try {
         const response = await axios.get(`${url}/`, {
-            timeout: 3000
+            timeout: 5000
         });
         
         res.json({
@@ -398,17 +398,18 @@ app.post('/api/ollama-test', async (req, res) => {
         });
     }
     
-    const testPrompt = prompt || 'Hello, this is a test message. Please respond briefly.';
+    const testMessage = prompt || '你好，模型！';
     const startTime = Date.now();
     
     try {
-        // 尝试连接 Ollama API
-        const response = await axios.post(`${url}/api/generate`, {
-            model: model,
-            prompt: testPrompt,
-            stream: false
+        // 使用新的API格式：POST /ask
+        const response = await axios.post(`${url}/ask`, {
+            message: testMessage
         }, {
-            timeout: 30000 // 30秒超时
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            timeout: 50000 // 30秒超时
         });
         
         const responseTime = Date.now() - startTime;
@@ -417,12 +418,9 @@ app.post('/api/ollama-test', async (req, res) => {
             success: true,
             connected: true,
             data: {
-                response: response.data.response,
-                model: response.data.model,
-                total_duration: response.data.total_duration,
-                load_duration: response.data.load_duration,
-                prompt_eval_count: response.data.prompt_eval_count,
-                eval_count: response.data.eval_count
+                message: response.data.message || response.data.response,
+                model: model,
+                response: response.data
             },
             responseTime,
             timestamp: new Date().toISOString()
@@ -443,21 +441,28 @@ app.post('/api/ollama-test', async (req, res) => {
 
 // API: 检查 Ollama 服务状态
 app.post('/api/ollama-status', async (req, res) => {
-    const { url } = req.body;
+    const { url, model } = req.body;
     
-    if (!url) {
+    if (!url || !model) {
         return res.status(400).json({
             success: false,
-            error: 'URL is required'
+            error: 'URL and model are required'
         });
     }
     
     const startTime = Date.now();
     
     try {
-        // 检查 Ollama 版本端点
-        const response = await axios.get(`${url}/api/version`, {
-            timeout: 3000
+        // 检查 Ollama 服务状态
+        const response = await axios.post(`${url}/api/generate`, {
+            model: model,
+            prompt: "你好",
+            stream: false
+        }, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            timeout: 5000
         });
         
         const responseTime = Date.now() - startTime;
@@ -624,6 +629,60 @@ app.post('/api/messages/validate', (req, res) => {
             lines: content.split('\n').length,
             words: content.split(/\s+/).length
         }
+    });
+});
+
+// API: 检测所有 Ollama 配置状态
+app.get('/api/ollama-check-all', async (req, res) => {
+    const results = await Promise.all(
+        OLLAMA_CONFIGS.map(async (config) => {
+            const startTime = Date.now();
+            
+            try {
+                // 检查 Ollama 服务状态
+                const response = await axios.post(`${config.url}/api/generate`, {
+                    model: config.model,
+                    prompt: "你好",
+                    stream: false
+                }, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 5000
+                });
+                
+                const responseTime = Date.now() - startTime;
+                
+                return {
+                    id: config.id,
+                    name: config.name,
+                    url: config.url,
+                    model: config.model,
+                    status: 'online',
+                    responseTime,
+                    data: response.data,
+                    timestamp: new Date().toISOString()
+                };
+            } catch (error) {
+                const responseTime = Date.now() - startTime;
+                
+                return {
+                    id: config.id,
+                    name: config.name,
+                    url: config.url,
+                    model: config.model,
+                    status: 'offline',
+                    responseTime,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                };
+            }
+        })
+    );
+    
+    res.json({
+        success: true,
+        data: results
     });
 });
 
