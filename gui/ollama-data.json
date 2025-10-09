@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "name": "Ollama 本地",
+    "url": "http://localhost:11434",
+    "model": "llama2",
+    "description": "本地Ollama服务"
+  },
+  {
+    "id": 1,
+    "name": "Ollama 本地",
+    "url": "http://192.168.50.8:11434",
+    "model": "llama2",
+    "description": "本地Ollama服务"
+  }
+]

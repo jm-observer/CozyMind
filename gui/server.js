@@ -1,47 +1,102 @@
-const express = require('express');
-const axios = require('axios');
-const path = require('path');
+import express from 'express';
+import axios from 'axios';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 10086;
+const PORT = 3000;
 
-// 支持的 AI-Core 地址列表（可动态修改）
-let AI_CORE_URLS = [
-    { id: 1, name: 'AI-Core 主服务', url: 'http://127.0.0.1:9800', description: '主要AI处理服务' },
-    { id: 2, name: 'AI-Core 备用服务', url: 'http://127.0.0.1:9801', description: '备用AI处理服务' },
-    { id: 3, name: 'AI-Core 测试服务', url: 'http://127.0.0.1:9802', description: '测试环境服务' }
-];
+// 文件路径
+const AI_CORE_DATA_FILE = path.join(__dirname, 'ai-core-data.json');
+const OLLAMA_DATA_FILE = path.join(__dirname, 'ollama-data.json');
+const MESSAGE_PRESETS_FILE = path.join(__dirname, 'msg-pre-data.json');
 
-// Ollama 配置列表
-let OLLAMA_CONFIGS = [
-    { id: 1, name: 'Ollama 本地', url: 'http://localhost:11434', model: 'llama2', description: '本地Ollama服务' }
-];
+// 数据存储变量
+let AI_CORE_URLS = [];
+let OLLAMA_CONFIGS = [];
+let MESSAGE_PRESETS = [];
 
-// 消息预设列表
-let MESSAGE_PRESETS = [
-    { 
-        id: 1, 
-        title: '系统提示词', 
-        content: 'You are a helpful AI assistant. Please provide clear and concise answers.', 
-        type: 'system',
-        tags: '系统, 通用',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    },
-    { 
-        id: 2, 
-        title: '友好问候', 
-        content: 'Hello! How can I help you today?', 
-        type: 'assistant',
-        tags: '问候, 开场',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    }
-];
+// 消息预设列表（将从文件加载）
 
 let nextCoreId = 4;
 let nextOllamaId = 2;
 let nextMessageId = 3;
+
+// 文件读写函数
+function loadAICoreData() {
+    try {
+        if (fs.existsSync(AI_CORE_DATA_FILE)) {
+            const data = fs.readFileSync(AI_CORE_DATA_FILE, 'utf8');
+            AI_CORE_URLS = JSON.parse(data);
+            // 更新nextCoreId
+            nextCoreId = Math.max(...AI_CORE_URLS.map(core => core.id), 0) + 1;
+        }
+    } catch (error) {
+        console.error('Error loading AI-Core data:', error);
+        AI_CORE_URLS = [];
+    }
+}
+
+function saveAICoreData() {
+    try {
+        fs.writeFileSync(AI_CORE_DATA_FILE, JSON.stringify(AI_CORE_URLS, null, 2), 'utf8');
+    } catch (error) {
+        console.error('Error saving AI-Core data:', error);
+    }
+}
+
+function loadOllamaData() {
+    try {
+        if (fs.existsSync(OLLAMA_DATA_FILE)) {
+            const data = fs.readFileSync(OLLAMA_DATA_FILE, 'utf8');
+            OLLAMA_CONFIGS = JSON.parse(data);
+            // 更新nextOllamaId
+            nextOllamaId = Math.max(...OLLAMA_CONFIGS.map(config => config.id), 0) + 1;
+        }
+    } catch (error) {
+        console.error('Error loading Ollama data:', error);
+        OLLAMA_CONFIGS = [];
+    }
+}
+
+function saveOllamaData() {
+    try {
+        fs.writeFileSync(OLLAMA_DATA_FILE, JSON.stringify(OLLAMA_CONFIGS, null, 2), 'utf8');
+    } catch (error) {
+        console.error('Error saving Ollama data:', error);
+    }
+}
+
+function loadMessagePresetsData() {
+    try {
+        if (fs.existsSync(MESSAGE_PRESETS_FILE)) {
+            const data = fs.readFileSync(MESSAGE_PRESETS_FILE, 'utf8');
+            MESSAGE_PRESETS = JSON.parse(data);
+            // 更新nextMessageId
+            nextMessageId = Math.max(...MESSAGE_PRESETS.map(msg => msg.id), 0) + 1;
+        }
+    } catch (error) {
+        console.error('Error loading message presets data:', error);
+        MESSAGE_PRESETS = [];
+    }
+}
+
+function saveMessagePresetsData() {
+    try {
+        fs.writeFileSync(MESSAGE_PRESETS_FILE, JSON.stringify(MESSAGE_PRESETS, null, 2), 'utf8');
+    } catch (error) {
+        console.error('Error saving message presets data:', error);
+    }
+}
+
+// 初始化时加载数据
+loadAICoreData();
+loadOllamaData();
+loadMessagePresetsData();
 
 // 静态文件服务
 app.use(express.static('public'));
@@ -189,6 +244,7 @@ app.post('/api/ai-cores', (req, res) => {
     };
     
     AI_CORE_URLS.push(newCore);
+    saveAICoreData(); // 保存到文件
     
     res.json({
         success: true,
@@ -214,6 +270,8 @@ app.put('/api/ai-cores/:id', (req, res) => {
     if (url) AI_CORE_URLS[index].url = url;
     if (description !== undefined) AI_CORE_URLS[index].description = description;
     
+    saveAICoreData(); // 保存到文件
+    
     res.json({
         success: true,
         data: AI_CORE_URLS[index]
@@ -234,6 +292,7 @@ app.delete('/api/ai-cores/:id', (req, res) => {
     }
     
     AI_CORE_URLS.splice(index, 1);
+    saveAICoreData(); // 保存到文件
     
     res.json({
         success: true,
@@ -271,6 +330,7 @@ app.post('/api/ollama-configs', (req, res) => {
     };
     
     OLLAMA_CONFIGS.push(newConfig);
+    saveOllamaData(); // 保存到文件
     
     res.json({
         success: true,
@@ -297,6 +357,8 @@ app.put('/api/ollama-configs/:id', (req, res) => {
     if (model) OLLAMA_CONFIGS[index].model = model;
     if (description !== undefined) OLLAMA_CONFIGS[index].description = description;
     
+    saveOllamaData(); // 保存到文件
+    
     res.json({
         success: true,
         data: OLLAMA_CONFIGS[index]
@@ -317,6 +379,7 @@ app.delete('/api/ollama-configs/:id', (req, res) => {
     }
     
     OLLAMA_CONFIGS.splice(index, 1);
+    saveOllamaData(); // 保存到文件
     
     res.json({
         success: true,
@@ -450,14 +513,14 @@ app.get('/api/messages/:id', (req, res) => {
 // API: 添加消息预设
 app.post('/api/messages', (req, res) => {
     const { title, content, type, tags } = req.body;
-    
+
     if (!title || !content) {
         return res.status(400).json({
             success: false,
             error: 'Title and content are required'
         });
     }
-    
+
     const newMessage = {
         id: nextMessageId++,
         title,
@@ -467,9 +530,10 @@ app.post('/api/messages', (req, res) => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
-    
+
     MESSAGE_PRESETS.push(newMessage);
-    
+    saveMessagePresetsData(); // 保存到文件
+
     res.json({
         success: true,
         data: newMessage
@@ -480,22 +544,24 @@ app.post('/api/messages', (req, res) => {
 app.put('/api/messages/:id', (req, res) => {
     const id = parseInt(req.params.id);
     const { title, content, type, tags } = req.body;
-    
+
     const index = MESSAGE_PRESETS.findIndex(m => m.id === id);
-    
+
     if (index === -1) {
         return res.status(404).json({
             success: false,
             error: 'Message not found'
         });
     }
-    
+
     if (title) MESSAGE_PRESETS[index].title = title;
     if (content) MESSAGE_PRESETS[index].content = content;
     if (type) MESSAGE_PRESETS[index].type = type;
     if (tags !== undefined) MESSAGE_PRESETS[index].tags = tags;
     MESSAGE_PRESETS[index].updatedAt = new Date().toISOString();
-    
+
+    saveMessagePresetsData(); // 保存到文件
+
     res.json({
         success: true,
         data: MESSAGE_PRESETS[index]
@@ -505,18 +571,19 @@ app.put('/api/messages/:id', (req, res) => {
 // API: 删除消息预设
 app.delete('/api/messages/:id', (req, res) => {
     const id = parseInt(req.params.id);
-    
+
     const index = MESSAGE_PRESETS.findIndex(m => m.id === id);
-    
+
     if (index === -1) {
         return res.status(404).json({
             success: false,
             error: 'Message not found'
         });
     }
-    
+
     MESSAGE_PRESETS.splice(index, 1);
-    
+    saveMessagePresetsData(); // 保存到文件
+
     res.json({
         success: true,
         message: 'Message deleted successfully'
@@ -561,10 +628,12 @@ app.post('/api/messages/validate', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log('🚀 CozyMind GUI Server started');
-    console.log(`📡 Server running at http://localhost:${PORT}`);
+    console.log('🚀 CozyMind API Server started');
+    console.log(`📡 API Server running at http://localhost:${PORT}`);
     console.log(`🔗 Monitoring ${AI_CORE_URLS.length} AI-Core services`);
     console.log(`🤖 Configured ${OLLAMA_CONFIGS.length} Ollama instances`);
     console.log(`💬 Loaded ${MESSAGE_PRESETS.length} message presets`);
+    console.log(`\n💡 To start development server with hot reload:`);
+    console.log(`   npm run dev`);
 });
 

@@ -40,17 +40,6 @@
                 <div class="services-card">
                     <div class="services-header">
                         <h2>AI-Core 服务列表</h2>
-                        <div class="controls-inline">
-                            <button class="btn btn-sm btn-success" onclick="showAddCoreModal()">
-                                ➕ 添加服务
-                            </button>
-                            <button class="btn btn-sm btn-primary" onclick="checkAllConnections()">
-                                🔄 检测所有
-                            </button>
-                            <button class="btn btn-sm btn-secondary" id="toggleAutoBtn" onclick="toggleAutoCheck()">
-                                ⏸️ 停止自动
-                            </button>
-                        </div>
                     </div>
                     
                     <div class="services-grid" id="servicesGrid">
@@ -58,31 +47,11 @@
                     </div>
                 </div>
 
-                <!-- 选中服务的详细信息 -->
-                <div class="detail-card" id="detailCard" style="display: none;">
-                    <h2>服务详细信息</h2>
-                    <div class="detail-tabs">
-                        <button class="tab-btn active" data-tab="health">健康检查</button>
-                        <button class="tab-btn" data-tab="info">基本信息</button>
-                    </div>
-                    <div class="detail-content">
-                        <div class="tab-pane active" id="healthPane">
-                            <!-- 健康检查信息 -->
-                        </div>
-                        <div class="tab-pane" id="infoPane">
-                            <!-- 基本信息 -->
-                        </div>
-                    </div>
-                </div>
-            </div>
 
                 <!-- Ollama 配置列表 -->
                 <div class="services-card">
                     <div class="services-header">
                         <h2>Ollama 配置列表</h2>
-                        <button class="btn btn-sm btn-success" onclick="showAddOllamaModal()">
-                            ➕ 添加配置
-                        </button>
                     </div>
                     
                     <div class="services-grid" id="ollamaGrid">

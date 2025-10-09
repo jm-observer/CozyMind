@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "title": "系统提示词",
+    "content": "You are a helpful AI assistant. Please provide clear and concise answers.",
+    "type": "system",
+    "tags": "系统, 通用",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "title": "友好问候",
+    "content": "Hello! How can I help you today?",
+    "type": "assistant",
+    "tags": "问候, 开场",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+]
