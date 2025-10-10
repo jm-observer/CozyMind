@@ -104,7 +104,7 @@ pub async fn check_connection(
     request: web::Json<CheckConnectionRequest>,
 ) -> impl Responder {
     let start_time = Instant::now();
-    let url = format!("{}/health", request.url);
+    let url = request.url.clone();
     
     let client = reqwest::Client::new();
     match tokio::time::timeout(
@@ -173,10 +173,11 @@ pub async fn check_all_connections(state: web::Data<AppState>) -> impl Responder
     for core in ai_cores.iter() {
         let core = core.clone();
         let client = client.clone();
+
+        let url = core.url.clone();
         
         let task = tokio::spawn(async move {
             let start_time = Instant::now();
-            let url = format!("{}/health", core.url);
             
             match tokio::time::timeout(
                 std::time::Duration::from_secs(5),

@@ -188,11 +188,15 @@ function updateServiceStatus(core) {
     
     if (!dot || !status || !time || !last) return;
     
-    if (core.connected) {
+    // 检查连接状态：支持 connected 属性和 status === 'online'
+    const isOnline = core.status === 'online';
+    
+    console.log(core,  isOnline);
+    if (isOnline) {
         dot.className = 'status-dot online';
         status.textContent = '在线';
         status.className = 'service-status online';
-        time.textContent = `${core.responseTime}ms`;
+        time.textContent = `${core.responseTime || 0}ms`;
     } else {
         dot.className = 'status-dot offline';
         status.textContent = '离线';
@@ -234,8 +238,11 @@ async function selectConnection(coreId) {
     // 检测并显示详细信息
     await checkSingleConnection(coreId);
     
-    // 显示详细信息卡片
-    document.getElementById('detailCard').style.display = 'block';
+    // 显示详细信息卡片（如果存在）
+    const detailCard = document.getElementById('detailCard');
+    if (detailCard) {
+        detailCard.style.display = 'block';
+    }
     
     addLog(`✓ 已选择使用: ${core.name}`, 'success');
 }
@@ -245,8 +252,14 @@ async function updateDetailInfo(core) {
     const healthPane = document.getElementById('healthPane');
     const infoPane = document.getElementById('infoPane');
     
+    // 如果详细信息面板不存在，直接返回
+    if (!healthPane || !infoPane) {
+        return;
+    }
+    
     // 更新健康检查信息
-    if (core.connected && core.data) {
+    const isOnline = core.connected || core.status === 'online';
+    if (isOnline && core.data) {
         healthPane.innerHTML = `
             <div class="info-item">
                 <strong>状态:</strong> <span class="badge badge-success">${core.data.status || 'N/A'}</span>
@@ -273,7 +286,7 @@ async function updateDetailInfo(core) {
     }
     
     // 获取基本信息
-    if (core.connected) {
+    if (isOnline) {
         try {
             const response = await fetch('/api/ai-core-info', {
                 method: 'POST',
@@ -400,7 +413,10 @@ async function deleteCore(coreId) {
             addLog(`✅ 删除服务成功: ${core.name}`, 'success');
             if (selectedCore?.id === coreId) {
                 selectedCore = null;
-                document.getElementById('detailCard').style.display = 'none';
+                const detailCard = document.getElementById('detailCard');
+                if (detailCard) {
+                    detailCard.style.display = 'none';
+                }
                 document.getElementById('selectedInfo').innerHTML = '<span class="selected-name">未选择</span>';
             }
             await loadAICores();
