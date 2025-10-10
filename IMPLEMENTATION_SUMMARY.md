@@ -4,8 +4,9 @@
 
 CozyMind 是一个 AI 服务管理与监控平台，包含以下主要组件：
 
-1. **AI-Core**: Rust actix-web 后端服务，提供健康检查和 MQTT Broker 功能
-2. **GUI**: Web 前端 + Rust actix-web 后端，提供服务管理界面和 API
+1. **AI-Core**: Rust actix-web 后端服务，提供AI服务核心功能
+2. **Broker**: 独立的MQTT Broker服务，提供消息代理功能
+3. **GUI**: Web 前端 + Rust actix-web 后端，提供服务管理界面和 API
 
 ## 已完成功能
 
@@ -16,6 +17,14 @@ CozyMind 是一个 AI 服务管理与监控平台，包含以下主要组件：
 - ✅ 健康检查端点 (`/health`)
 - ✅ 服务信息端点 (`/`)
 - ✅ 环境日志系统
+
+**API 端点：**
+- `GET /` - 服务信息
+- `GET /health` - 健康检查
+
+**端口**: `127.0.0.1:9800`
+
+### ✅ Broker (`broker/`)
 
 #### MQTT Broker 功能
 - ✅ MQTT Broker 实现 (rumqttd)
@@ -34,7 +43,7 @@ CozyMind 是一个 AI 服务管理与监控平台，包含以下主要组件：
 - `POST /mqtt/publish` - 发布 MQTT 消息
 - `GET /mqtt/clients` - 获取连接的客户端列表
 
-**端口**: `127.0.0.1:9800`
+**端口**: `127.0.0.1:9801`
 
 ### ✅ GUI 后端 (`gui/`)
 
@@ -108,6 +117,12 @@ CozyMind 是一个 AI 服务管理与监控平台，包含以下主要组件：
 CozyMind/
 ├── ai-core/                    # AI-Core Rust 服务
 │   ├── src/
+│   │   └── main.rs            # 主程序
+│   ├── Cargo.toml
+│   └── target/
+│
+├── broker/                     # MQTT Broker Rust 服务
+│   ├── src/
 │   │   ├── main.rs            # 主程序
 │   │   └── mqtt/              # MQTT 模块
 │   │       ├── mod.rs
@@ -116,6 +131,7 @@ CozyMind/
 │   │       ├── config.rs      # 配置
 │   │       └── message.rs     # 消息结构
 │   ├── Cargo.toml
+│   ├── README.md
 │   └── target/
 │
 ├── gui/                        # GUI Rust 后端
@@ -188,7 +204,16 @@ cargo run --release
 
 服务将在 `http://127.0.0.1:9800` 启动
 
-### 2. 启动 GUI 服务
+### 2. 启动 MQTT Broker 服务
+
+```bash
+cd broker
+cargo run --release
+```
+
+服务将在 `http://127.0.0.1:9801` 启动
+
+### 3. 启动 GUI 服务
 
 ```bash
 cd gui
@@ -197,7 +222,7 @@ cargo run --release
 
 服务将在 `http://127.0.0.1:3000` 启动
 
-### 3. 访问前端
+### 4. 访问前端
 
 打开浏览器访问: `http://localhost:3000`
 
@@ -220,12 +245,17 @@ Vite 会将 `/api` 请求代理到 `http://localhost:3000`
 cd ai-core
 cargo build --release
 
+# 编译 MQTT Broker
+cd ../broker
+cargo build --release
+
 # 编译 GUI 后端
 cd ../gui
 cargo build --release
 
 # 启动服务
 ./ai-core/target/release/ai-core &
+./broker/target/release/broker &
 ./gui/target/release/gui-server &
 ```
 
@@ -251,8 +281,8 @@ cargo build --release
 - 自动选择首个健康服务
 
 ### 3. MQTT 集成
-- AI-Core 提供 MQTT Broker
-- GUI 提供 MQTT 客户端
+- Broker 模块提供独立的 MQTT Broker 服务
+- GUI 提供 MQTT 客户端连接功能
 - 支持消息发布和订阅
 
 ### 4. CORS 支持
@@ -300,16 +330,19 @@ A:
 ### Q: MQTT Broker 如何使用？
 A: 
 ```bash
-# 启动 AI-Core
-curl -X POST http://localhost:9800/mqtt/start \
+# 启动 MQTT Broker 服务
+cd broker && cargo run --release
+
+# 启动 Broker
+curl -X POST http://localhost:9801/mqtt/start \
   -H "Content-Type: application/json" \
   -d '{"host":"0.0.0.0","port":1883}'
 
 # 检查状态
-curl http://localhost:9800/mqtt/status
+curl http://localhost:9801/mqtt/status
 
 # 发布消息
-curl -X POST http://localhost:9800/mqtt/publish \
+curl -X POST http://localhost:9801/mqtt/publish \
   -H "Content-Type: application/json" \
   -d '{"topic":"test/topic","payload":[72,101,108,108,111],"qos":0}'
 ```
