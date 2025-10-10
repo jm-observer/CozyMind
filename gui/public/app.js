@@ -9,6 +9,8 @@ let selectedMessage = null;
 let editingCoreId = null;
 let editingOllamaId = null;
 let currentSection = 'services';
+let lastCheckResults = new Map(); // 存储最后的检测结果
+let lastOllamaCheckResults = new Map(); // 存储Ollama最后的检测结果
 
 // 页面加载时初始化
 window.addEventListener('DOMContentLoaded', () => {
@@ -133,13 +135,15 @@ async function checkAllConnections() {
         if (result.success) {
             result.data.forEach(core => {
                 updateServiceStatus(core);
+                // 存储检测结果
+                lastCheckResults.set(core.id, core);
             });
             
             // 自动选择第一个健康的服务
             const healthyServices = result.data.filter(core => core.status === 'online');
             if (healthyServices.length > 0 && !selectedCore) {
                 const firstHealthy = healthyServices[0];
-                selectConnection(firstHealthy.id);
+                selectConnection(firstHealthy.id, true); // 传递true表示是自动选择
                 addLog(`✅ 自动选择第一个健康服务: ${firstHealthy.name}`, 'success');
             }
             
@@ -159,20 +163,24 @@ async function checkSingleConnection(coreId) {
         const response = await fetch('/api/check-connection', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: core.url })
+            body: JSON.stringify({ id: core.id, url: core.url })
         });
         
         const result = await response.json();
         
-        if (result.success) {
-            const coreData = { ...core, ...result };
+        if (result.success && result.data) {
+            const coreData = { ...core, ...result.data };
             updateServiceStatus(coreData);
+            // 存储检测结果
+            lastCheckResults.set(coreId, coreData);
             
-            if (result.connected) {
-                addLog(`✅ ${core.name} 连接成功 - 响应时间: ${result.responseTime}ms`, 'success');
+            if (result.data.status === 'online') {
+                addLog(`✅ ${core.name} 连接成功 - 响应时间: ${result.data.response_time}ms`, 'success');
             } else {
-                addLog(`❌ ${core.name} 连接失败 - ${result.error}`, 'error');
+                addLog(`❌ ${core.name} 连接失败 - ${result.data.message}`, 'error');
             }
+        } else {
+            addLog(`❌ ${core.name} 检测失败 - ${result.error}`, 'error');
         }
     } catch (error) {
         addLog(`❌ ${core.name} 检测失败: ${error.message}`, 'error');
@@ -191,12 +199,12 @@ function updateServiceStatus(core) {
     // 检查连接状态：支持 connected 属性和 status === 'online'
     const isOnline = core.status === 'online';
     
-    console.log(core,  isOnline);
+    console.log(core, isOnline);
     if (isOnline) {
         dot.className = 'status-dot online';
         status.textContent = '在线';
         status.className = 'service-status online';
-        time.textContent = `${core.responseTime || 0}ms`;
+        time.textContent = `${core.response_time || core.responseTime || 0}ms`;
     } else {
         dot.className = 'status-dot offline';
         status.textContent = '离线';
@@ -213,7 +221,7 @@ function updateServiceStatus(core) {
 }
 
 // 选择连接
-async function selectConnection(coreId) {
+async function selectConnection(coreId, isAutoSelect = false) {
     const core = aiCores.find(c => c.id === coreId);
     if (!core) return;
     
@@ -235,8 +243,14 @@ async function selectConnection(coreId) {
         <span class="selected-url">${core.url}</span>
     `;
     
-    // 检测并显示详细信息
-    await checkSingleConnection(coreId);
+    // 如果是自动选择且已有检测结果，直接使用缓存的结果
+    if (isAutoSelect && lastCheckResults.has(coreId)) {
+        const cachedResult = lastCheckResults.get(coreId);
+        updateDetailInfo(cachedResult);
+    } else {
+        // 手动选择或没有缓存结果时，进行检测
+        await checkSingleConnection(coreId);
+    }
     
     // 显示详细信息卡片（如果存在）
     const detailCard = document.getElementById('detailCard');
@@ -258,20 +272,20 @@ async function updateDetailInfo(core) {
     }
     
     // 更新健康检查信息
-    const isOnline = core.connected || core.status === 'online';
-    if (isOnline && core.data) {
+    const isOnline = core.status === 'online';
+    if (isOnline) {
         healthPane.innerHTML = `
             <div class="info-item">
-                <strong>状态:</strong> <span class="badge badge-success">${core.data.status || 'N/A'}</span>
+                <strong>状态:</strong> <span class="badge badge-success">${core.status || 'N/A'}</span>
             </div>
             <div class="info-item">
-                <strong>消息:</strong> ${core.data.message || 'N/A'}
+                <strong>消息:</strong> ${core.message || 'N/A'}
             </div>
             <div class="info-item">
-                <strong>版本:</strong> ${core.data.version || 'N/A'}
+                <strong>版本:</strong> ${core.version || 'N/A'}
             </div>
             <div class="info-item">
-                <strong>响应时间:</strong> ${core.responseTime}ms
+                <strong>响应时间:</strong> ${core.response_time || core.responseTime || 0}ms
             </div>
             <div class="info-item">
                 <strong>检测时间:</strong> ${new Date(core.timestamp).toLocaleString('zh-CN')}
@@ -280,7 +294,7 @@ async function updateDetailInfo(core) {
     } else {
         healthPane.innerHTML = `
             <div class="info-item error">
-                <strong>连接失败:</strong> ${core.error || '无法连接到服务'}
+                <strong>连接失败:</strong> ${core.message || '无法连接到服务'}
             </div>
         `;
     }
@@ -458,13 +472,15 @@ async function checkAllOllamaConfigs() {
         if (result.success) {
             result.data.forEach(config => {
                 updateOllamaStatus(config);
+                // 存储检测结果
+                lastOllamaCheckResults.set(config.id, config);
             });
             
             // 自动选择第一个健康的配置
             const healthyConfigs = result.data.filter(config => config.status === 'online');
             if (healthyConfigs.length > 0 && !selectedOllama) {
                 const firstHealthy = healthyConfigs[0];
-                selectOllamaForUse(firstHealthy.id);
+                selectOllamaForUse(firstHealthy.id, true); // 传递true表示是自动选择
                 addLog(`✅ 自动选择第一个健康的 Ollama 配置: ${firstHealthy.name}`, 'success');
             }
             
@@ -477,6 +493,16 @@ async function checkAllOllamaConfigs() {
 
 // 更新 Ollama 配置状态
 function updateOllamaStatus(config) {
+    // 更新状态点
+    const dotElement = document.getElementById(`ollama-dot-${config.id}`);
+    if (dotElement) {
+        if (config.status === 'online') {
+            dotElement.className = 'status-dot online';
+        } else {
+            dotElement.className = 'status-dot offline';
+        }
+    }
+    
     // 更新状态显示
     const statusElement = document.getElementById(`ollama-status-${config.id}`);
     if (statusElement) {
@@ -487,7 +513,7 @@ function updateOllamaStatus(config) {
     // 更新响应时间
     const timeElement = document.getElementById(`ollama-time-${config.id}`);
     if (timeElement) {
-        timeElement.textContent = `${config.responseTime}ms`;
+        timeElement.textContent = `${config.response_time || config.responseTime || 0}ms`;
     }
     
     // 更新最后检测时间
@@ -513,6 +539,7 @@ function renderOllamaConfigs() {
             <div class="service-header">
                 <div class="service-title">
                     <h3>${config.name}</h3>
+                    <span class="status-dot checking" id="ollama-dot-${config.id}"></span>
                     <div class="model-info">
                         <span class="model-label">模型:</span>
                         <span class="model-name">${config.model}</span>
@@ -555,7 +582,7 @@ function renderOllamaConfigs() {
 
 // 选择 Ollama 配置进行测试
 // 选择 Ollama 配置进行使用
-function selectOllamaForUse(configId) {
+function selectOllamaForUse(configId, isAutoSelect = false) {
     const config = ollamaConfigs.find(c => c.id === configId);
     if (!config) return;
     
@@ -565,7 +592,16 @@ function selectOllamaForUse(configId) {
     document.querySelectorAll('#ollamaGrid .service-item').forEach(item => {
         item.classList.remove('selected');
     });
-    document.getElementById(`ollama-${configId}`).classList.add('selected');
+    const ollamaItem = document.getElementById(`ollama-${configId}`);
+    if (ollamaItem) {
+        ollamaItem.classList.add('selected');
+    }
+    
+    // 如果是自动选择，使用缓存的检测结果来更新状态显示
+    if (isAutoSelect && lastOllamaCheckResults.has(configId)) {
+        const cachedResult = lastOllamaCheckResults.get(configId);
+        updateOllamaStatus(cachedResult);
+    }
     
     addLog(`✓ 已选择 Ollama 配置: ${config.name} (${config.model})`, 'success');
 }

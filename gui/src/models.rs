@@ -23,14 +23,38 @@ pub struct OllamaConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessagePreset {
     pub id: i32,
-    pub name: String,
+    pub title: String,
     pub content: String,
-    pub category: String,
+    pub r#type: String,
+    pub tags: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+/// 添加消息预设请求
+#[derive(Debug, Deserialize)]
+pub struct AddMessageRequest {
+    pub title: String,
+    pub content: String,
+    pub r#type: String,
+    pub tags: Option<String>,
+}
+
+/// 更新消息预设请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateMessageRequest {
+    pub title: String,
+    pub content: String,
+    pub r#type: String,
+    pub tags: Option<String>,
 }
 
 /// 连接检查请求
 #[derive(Debug, Deserialize)]
 pub struct CheckConnectionRequest {
+    pub id: i32,
     pub url: String,
 }
 

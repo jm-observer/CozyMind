@@ -61,14 +61,21 @@ impl AppState {
 
         // 加载消息预设数据
         if let Ok(data) = std_fs::read_to_string("msg-pre-data.json") {
+            log::info!("📄 读取到消息预设文件，大小: {} 字节", data.len());
             if let Ok(presets) = serde_json::from_str::<Vec<MessagePreset>>(&data) {
+                log::info!("✅ 成功解析 {} 个消息预设", presets.len());
                 let mut message_presets = self.message_presets.write().await;
                 *message_presets = presets.clone();
                 
                 let max_id = presets.iter().map(|m| m.id).max().unwrap_or(0);
                 let mut next_id = self.next_message_id.write().await;
                 *next_id = max_id + 1;
+                log::info!("🆔 设置下一个消息ID为: {}", *next_id);
+            } else {
+                log::error!("❌ 解析消息预设JSON失败");
             }
+        } else {
+            log::warn!("⚠️ 无法读取消息预设文件 msg-pre-data.json");
         }
     }
 
