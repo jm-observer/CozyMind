@@ -1,4 +1,5 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use rumqttc::v5::mqttbytes::QoS;
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
@@ -57,37 +58,6 @@ async fn mqtt_status(client: web::Data<Arc<RwLock<Option<MqttClient>>>>) -> impl
     }
 }
 
-/// 连接 MQTT Broker
-#[post("/mqtt/connect")]
-async fn mqtt_connect(
-    client: web::Data<Arc<RwLock<Option<MqttClient>>>>,
-    config: web::Json<ClientConfig>,
-) -> impl Responder {
-    let mut client_guard = client.write().await;
-    
-    if client_guard.is_some() {
-        return HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "MQTT client is already connected"
-        }));
-    }
-
-    let config = config.into_inner();
-    let mut new_client = MqttClient::new(config.clone());
-    match new_client.connect(config).await {
-        Ok(_) => {
-            *client_guard = Some(new_client);
-            HttpResponse::Ok().json(serde_json::json!({
-                "status": "success",
-                "message": "MQTT client connected successfully"
-            }))
-        }
-        Err(e) => {
-            HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": format!("Failed to connect MQTT client: {}", e)
-            }))
-        }
-    }
-}
 
 /// 断开 MQTT 连接
 #[post("/mqtt/disconnect")]
@@ -125,10 +95,10 @@ async fn mqtt_subscribe(
     
     if let Some(client) = client_guard.as_ref() {
         let qos = match request.qos {
-            0 => rumqttc::QoS::AtMostOnce,
-            1 => rumqttc::QoS::AtLeastOnce,
-            2 => rumqttc::QoS::ExactlyOnce,
-            _ => rumqttc::QoS::AtMostOnce,
+            0 => QoS::AtMostOnce,
+            1 => QoS::AtLeastOnce,
+            2 => QoS::ExactlyOnce,
+            _ => QoS::AtMostOnce,
         };
         
         match client.subscribe(&request.topic, qos).await {
@@ -190,10 +160,10 @@ async fn mqtt_publish(
     
     if let Some(client) = client_guard.as_ref() {
         let qos = match request.qos.unwrap_or(0) {
-            0 => rumqttc::QoS::AtMostOnce,
-            1 => rumqttc::QoS::AtLeastOnce,
-            2 => rumqttc::QoS::ExactlyOnce,
-            _ => rumqttc::QoS::AtMostOnce,
+            0 => QoS::AtMostOnce,
+            1 => QoS::AtLeastOnce,
+            2 => QoS::ExactlyOnce,
+            _ => QoS::AtMostOnce,
         };
         
         match client.publish(
@@ -246,11 +216,18 @@ struct PublishRequest {
 
 #[actix_web::main]
 async fn main() -> io::Result<()> {
+    // 加载环境变量
+    dotenvy::dotenv().ok();
+    
     // 初始化日志
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    let port = 9800;
-    let host = "127.0.0.1";
+    // 从环境变量读取配置，如果未设置则使用默认值
+    let host = std::env::var("AI_CORE_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port: u16 = std::env::var("AI_CORE_PORT")
+        .unwrap_or_else(|_| "9800".to_string())
+        .parse()
+        .unwrap_or(9800);
 
     log::info!("🚀 Starting CozyMind AI-Core server...");
     log::info!("📡 Server listening on http://{}:{}", host, port);
@@ -258,8 +235,11 @@ async fn main() -> io::Result<()> {
     log::info!("🤖 AI services endpoints: http://{}:{}/ai/*", host, port);
     log::info!("🔌 MQTT client endpoints: http://{}:{}/mqtt/*", host, port);
 
+    let mut mqtt_client = MqttClient::new(ClientConfig::default());
+    mqtt_client.connect().await.unwrap();
+
     // 创建MQTT客户端共享状态
-    let mqtt_client = Arc::new(RwLock::new(None::<MqttClient>));
+    let mqtt_client = Arc::new(RwLock::new(Some(mqtt_client)));
 
     HttpServer::new(move || {
         App::new()
@@ -267,13 +247,12 @@ async fn main() -> io::Result<()> {
             .service(index)
             .service(health_check)
             .service(mqtt_status)
-            .service(mqtt_connect)
             .service(mqtt_disconnect)
             .service(mqtt_subscribe)
             .service(mqtt_unsubscribe)
             .service(mqtt_publish)
     })
-    .bind((host, port))?
+    .bind((host.as_str(), port))?
     .run()
     .await
 }

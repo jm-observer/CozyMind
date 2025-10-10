@@ -1,4 +1,5 @@
-use rumqttc::{AsyncClient, Event, MqttOptions, QoS};
+use rumqttc::v5::mqttbytes::QoS;
+use rumqttc::v5::{AsyncClient, Event, MqttOptions};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
@@ -7,10 +8,9 @@ use tokio::time::timeout;
 /// MQTT 客户端管理器
 pub struct MqttClient {
     client: Option<Arc<RwLock<AsyncClient>>>,
-    client_id: String,
-    broker_url: String,
     is_connected: bool,
     message_sender: Arc<RwLock<Option<mpsc::UnboundedSender<MqttMessage>>>>,
+    config: ClientConfig
 }
 
 /// 客户端配置
@@ -27,13 +27,30 @@ pub struct ClientConfig {
 
 impl Default for ClientConfig {
     fn default() -> Self {
+        // 从环境变量读取配置，未设置则使用默认值
+        let client_id = std::env::var("AI_CORE_MQTT_CLIENT_ID")
+            .unwrap_or_else(|_| format!("ai-core-{}", uuid::Uuid::new_v4().to_string()[..8].to_string()));
+        
+        let broker_host = std::env::var("BROKER_MQTT_V5_HOST")
+            .unwrap_or_else(|_| "localhost".to_string());
+        
+        let broker_port: u16 = std::env::var("BROKER_MQTT_V5_PORT")
+            .unwrap_or_else(|_| "8884".to_string())
+            .parse()
+            .unwrap_or(8884);
+        
+        let keep_alive: u16 = std::env::var("MQTT_KEEP_ALIVE")
+            .unwrap_or_else(|_| "60".to_string())
+            .parse()
+            .unwrap_or(60);
+        
         Self {
-            client_id: format!("ai-core-{}", uuid::Uuid::new_v4().to_string()[..8].to_string()),
-            broker_host: "localhost".to_string(),
-            broker_port: 1883,
-            username: None,
-            password: None,
-            keep_alive: 60,
+            client_id,
+            broker_host,
+            broker_port,
+            username: std::env::var("MQTT_USERNAME").ok(),
+            password: std::env::var("MQTT_PASSWORD").ok(),
+            keep_alive,
             clean_session: true,
         }
     }
@@ -80,34 +97,31 @@ impl MqttMessage {
 impl MqttClient {
     /// 创建新的MQTT客户端
     pub fn new(config: ClientConfig) -> Self {
-        let broker_url = format!("{}:{}", config.broker_host, config.broker_port);
-        
         Self {
             client: None,
-            client_id: config.client_id,
-            broker_url,
+            config,
             is_connected: false,
             message_sender: Arc::new(RwLock::new(None)),
         }
     }
 
     /// 连接到MQTT Broker
-    pub async fn connect(&mut self, config: ClientConfig) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        log::info!("🔗 AI-Core connecting to MQTT Broker: {}", self.broker_url);
+    pub async fn connect(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        log::info!("🔗 AI-Core connecting to MQTT Broker: {:?}", self.config);
 
         // 创建MQTT选项
         let mut mqtt_options = MqttOptions::new(
-            &config.client_id,
-            &config.broker_host,
-            config.broker_port,
+            &self.config.client_id,
+            &self.config.broker_host,
+            self.config.broker_port,
         );
         
-        mqtt_options.set_keep_alive(Duration::from_secs(config.keep_alive as u64));
-        mqtt_options.set_clean_session(config.clean_session);
+        mqtt_options.set_keep_alive(Duration::from_secs(self.config.keep_alive as u64));
+        mqtt_options.set_clean_session(self.config.clean_session);
         
-        if let Some(username) = config.username {
-            mqtt_options.set_credentials(username, config.password.unwrap_or_default());
-        }
+        // if let Some(username) = &self.config.username {
+        //     mqtt_options.set_credentials(username.clone(), self.config.password.as_ref()?.clone());
+        // }
 
         // 创建客户端和事件循环
         let (client, mut event_loop) = AsyncClient::new(mqtt_options, 10);
@@ -117,7 +131,7 @@ impl MqttClient {
 
         // 启动事件循环任务
         let message_sender = self.message_sender.clone();
-        let _client_id = self.client_id.clone();
+        let _client_id = self.config.client_id.clone();
         tokio::spawn(async move {
             loop {
                 match timeout(Duration::from_secs(1), event_loop.poll()).await {
@@ -127,10 +141,10 @@ impl MqttClient {
                                 log::debug!("📨 AI-Core received MQTT packet: {:?}", packet);
                                 
                                 if let Some(sender) = message_sender.read().await.as_ref() {
-                                    if let rumqttc::Packet::Publish(publish) = packet {
+                                    if let rumqttc::v5::mqttbytes::v5::Packet::Publish(publish, _) = packet.as_ref() {
                                         let message = MqttMessage {
                                             id: uuid::Uuid::new_v4().to_string(),
-                                            topic: publish.topic,
+                                            topic: String::from_utf8_lossy(&publish.topic).to_string(),
                                             payload: publish.payload.to_vec(),
                                             qos: publish.qos as u8,
                                             retain: publish.retain,
@@ -219,7 +233,7 @@ impl MqttClient {
         if let Some(client) = &self.client {
             log::debug!("📤 AI-Core publishing message to topic: {}, size: {} bytes", topic, payload.len());
             let client_guard = client.read().await;
-            client_guard.publish(topic, qos, retain, payload).await?;
+            client_guard.publish(topic, qos, retain, payload.to_vec()).await?;
             log::debug!("✅ AI-Core message published successfully");
             Ok(())
         } else {
@@ -249,8 +263,8 @@ impl MqttClient {
     /// 获取客户端信息
     pub fn get_client_info(&self) -> ClientInfo {
         ClientInfo {
-            client_id: self.client_id.clone(),
-            broker_url: self.broker_url.clone(),
+            client_id: self.config.client_id.clone(),
+            broker_url: format!("{}:{}", self.config.broker_host, self.config.broker_port),
             is_connected: self.is_connected,
         }
     }

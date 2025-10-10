@@ -1,0 +1,96 @@
+[workspace]
+resolver = "2"
+members = [
+    "ai-core",
+    "broker",
+    "rust-models",
+    "gui",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["CozyMind Team"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/CozyMind"
+
+[workspace.dependencies]
+# 共享依赖版本管理
+# Async Runtime
+tokio = { version = "1.36", features = ["full"] }
+actix-web = "4.9"
+actix-rt = "2.10"
+actix-files = "0.6"
+actix-cors = "0.7"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
+# MQTT
+rumqttc = "0.20"
+rumqttd = "0.20"
+
+# Utilities
+uuid = { version = "1.7", features = ["v4", "fast-rng"] }
+chrono = "0.4"
+dotenvy = "0.15"
+config = "0.14"
+
+# HTTP Client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Error Handling
+thiserror = "1.0"
+
+# Data Structures
+bytes = { version = "1", features = ["serde"] }
+
+# Async Utilities
+futures = "0.3"
+futures-util = "0.3.30"
+
+# Concurrency
+parking_lot = "0.12.1"
+flume = { version = "0.11.0", default-features = false, features = ["async"] }
+
+# Collections
+slab = "0.4.9"
+
+# Metrics
+metrics = "0.22.1"
+metrics-exporter-prometheus = { version = "0.13.1", default-features = false, features = ["http-listener"] }
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# Web Framework
+axum = "0.7.4"
+
+# Utilities
+rand = "0.8.5"
+subtle = "2.5"
+
+[profile.release]
+# 发布优化配置
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev]
+# 开发配置
+opt-level = 0
+debug = true
+
+[profile.dev.package."*"]
+# 依赖包在开发模式下也进行优化，提升编译速度
+opt-level = 3
+
