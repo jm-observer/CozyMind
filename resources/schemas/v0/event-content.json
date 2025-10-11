@@ -1,0 +1,76 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/event-content.v0.json",
+    "type": "object",
+    "required": [
+        "source",
+        "status"
+    ],
+    "properties": {
+        "source": {
+            "type": "string",
+            "minLength": 1
+        },
+        "status": {
+            "enum": [
+                "ok",
+                "error"
+            ]
+        },
+        "data": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "error": {
+            "type": "object",
+            "required": [
+                "code",
+                "message"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "status": {
+                        "const": "ok"
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "data"
+                ]
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "status": {
+                        "const": "error"
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "error"
+                ]
+            }
+        }
+    ],
+    "additionalProperties": true
+}

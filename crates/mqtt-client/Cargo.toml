@@ -1,0 +1,23 @@
+[package]
+name = "mqtt-client"
+version = "0.1.0"
+edition = "2021"
+authors = ["CozyMind Team"]
+description = "MQTT v5 client wrapper for CozyMind project"
+
+[dependencies]
+# MQTT
+rumqttc = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+
+# Logging
+log = { workspace = true }

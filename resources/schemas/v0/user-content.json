@@ -1,0 +1,6 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/user-content.v0.json",
+    "type": "string",
+    "minLength": 1
+    }

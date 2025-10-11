@@ -1,0 +1,15 @@
+{
+  "type": "event",
+  "content": {
+    "source": "mod-002",
+    "status": "error",
+    "error": {
+      "code": "E_TIMEOUT",
+      "message": "scheduler timeout"
+    }
+  },
+  "meta": {
+    "schema_version": "v0",
+    "timestamp": "2024-10-11T08:00:00Z"
+  }
+}

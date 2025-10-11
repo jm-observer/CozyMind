@@ -1,0 +1,14 @@
+{
+  "type": "event",
+  "content": {
+    "source": "mod-002",
+    "status": "ok",
+    "data": {
+      "id": "r-1"
+    }
+  },
+  "meta": {
+    "schema_version": "v0",
+    "timestamp": "2024-10-11T08:00:00Z"
+  }
+}
