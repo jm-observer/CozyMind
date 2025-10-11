@@ -1,12 +1,9 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use rumqttc::v5::mqttbytes::QoS;
+use mqtt_client::{ClientConfig, MqttClient, QoS};
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-
-mod mqtt;
-use mqtt::{MqttClient, ClientConfig};
 
 /// 健康检查响应结构
 #[derive(Serialize, Deserialize)]
@@ -237,7 +234,15 @@ async fn main() -> io::Result<()> {
 
     let (tx, mut rx) = mpsc::unbounded_channel();
 
-    let mut mqtt_client = MqttClient::new(ClientConfig::ai_core_default(), tx);
+    // 从环境变量创建 MQTT 配置
+    let mqtt_config = ClientConfig::from_env(
+        "AI_CORE_MQTT_CLIENT_ID",
+        "BROKER_MQTT_V5_HOST",
+        "BROKER_MQTT_V5_PORT",
+        "MQTT_KEEP_ALIVE",
+    );
+
+    let mut mqtt_client = MqttClient::new(mqtt_config, tx);
 
     tokio::spawn(async move {
         while let Some(message) = rx.recv().await {

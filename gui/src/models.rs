@@ -55,7 +55,6 @@ pub struct UpdateMessageRequest {
 #[derive(Debug, Deserialize)]
 pub struct CheckConnectionRequest {
     pub id: i32,
-    pub url: String,
 }
 
 /// Ollama 状态检查请求
@@ -69,7 +68,6 @@ pub struct OllamaStatusRequest {
 #[derive(Debug, Deserialize)]
 pub struct OllamaTestRequest {
     pub url: String,
-    pub model: String,
     pub prompt: Option<String>,
 }
 

@@ -7,7 +7,6 @@ use std::fs as std_fs;
 
 mod models;
 mod handlers;
-mod mqtt_client;
 
 use models::*;
 
@@ -36,7 +35,7 @@ impl AppState {
 
     pub async fn load_data(&self) {
         // 加载 AI-Core 数据
-        if let Ok(data) = std_fs::read_to_string("ai-core-data.json") {
+        if let Ok(data) = std_fs::read_to_string("./resources/ai-core-data.json") {
             if let Ok(cores) = serde_json::from_str::<Vec<AICoreConfig>>(&data) {
                 let mut ai_cores = self.ai_cores.write().await;
                 *ai_cores = cores.clone();
@@ -48,7 +47,7 @@ impl AppState {
         }
 
         // 加载 Ollama 数据
-        if let Ok(data) = std_fs::read_to_string("ollama-data.json") {
+        if let Ok(data) = std_fs::read_to_string("./resources/ollama-data.json") {
             if let Ok(configs) = serde_json::from_str::<Vec<OllamaConfig>>(&data) {
                 let mut ollama_configs = self.ollama_configs.write().await;
                 *ollama_configs = configs.clone();
@@ -60,7 +59,7 @@ impl AppState {
         }
 
         // 加载消息预设数据
-        if let Ok(data) = std_fs::read_to_string("msg-pre-data.json") {
+        if let Ok(data) = std_fs::read_to_string("./resources/msg-pre-data.json") {
             log::info!("📄 读取到消息预设文件，大小: {} 字节", data.len());
             if let Ok(presets) = serde_json::from_str::<Vec<MessagePreset>>(&data) {
                 log::info!("✅ 成功解析 {} 个消息预设", presets.len());
@@ -82,21 +81,21 @@ impl AppState {
     pub async fn save_ai_cores(&self) {
         let ai_cores = self.ai_cores.read().await;
         if let Ok(json) = serde_json::to_string_pretty(&*ai_cores) {
-            let _ = std_fs::write("ai-core-data.json", json);
+            let _ = std_fs::write("./resources/ai-core-data.json", json);
         }
     }
 
     pub async fn save_ollama_configs(&self) {
         let ollama_configs = self.ollama_configs.read().await;
         if let Ok(json) = serde_json::to_string_pretty(&*ollama_configs) {
-            let _ = std_fs::write("ollama-data.json", json);
+            let _ = std_fs::write("./resources/ollama-data.json", json);
         }
     }
 
     pub async fn save_message_presets(&self) {
         let message_presets = self.message_presets.read().await;
         if let Ok(json) = serde_json::to_string_pretty(&*message_presets) {
-            let _ = std_fs::write("msg-pre-data.json", json);
+            let _ = std_fs::write("./resources/msg-pre-data.json", json);
         }
     }
 }
@@ -154,7 +153,7 @@ async fn main() -> std::io::Result<()> {
             .service(handlers::update_message)
             .service(handlers::delete_message)
             // 静态文件服务
-            .service(fs::Files::new("/", "./public").index_file("index.html"))
+            .service(fs::Files::new("/", "./gui/public").index_file("index.html"))
     })
     .bind((host, port))?
     .run()

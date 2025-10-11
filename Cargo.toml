@@ -3,8 +3,8 @@ resolver = "2"
 members = [
     "ai-core",
     "broker",
-    "rust-models",
     "gui",
+    "crates/mqtt-client",
 ]
 
 [workspace.package]
