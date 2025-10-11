@@ -9,7 +9,7 @@ use tokio::time::timeout;
 pub struct MqttClient {
     client: Option<Arc<RwLock<AsyncClient>>>,
     is_connected: bool,
-    message_sender: Arc<RwLock<Option<mpsc::UnboundedSender<MqttMessage>>>>,
+    message_sender: mpsc::UnboundedSender<MqttMessage>,
     config: ClientConfig
 }
 
@@ -25,8 +25,8 @@ pub struct ClientConfig {
     pub clean_session: bool,
 }
 
-impl Default for ClientConfig {
-    fn default() -> Self {
+impl ClientConfig {
+    pub fn ai_core_default() -> Self {
         // 从环境变量读取配置，未设置则使用默认值
         let client_id = std::env::var("AI_CORE_MQTT_CLIENT_ID")
             .unwrap_or_else(|_| format!("ai-core-{}", uuid::Uuid::new_v4().to_string()[..8].to_string()));
@@ -96,12 +96,12 @@ impl MqttMessage {
 
 impl MqttClient {
     /// 创建新的MQTT客户端
-    pub fn new(config: ClientConfig) -> Self {
+    pub fn new(config: ClientConfig, tx: mpsc::UnboundedSender<MqttMessage>) -> Self {
         Self {
             client: None,
             config,
             is_connected: false,
-            message_sender: Arc::new(RwLock::new(None)),
+            message_sender: tx,
         }
     }
 
@@ -130,7 +130,7 @@ impl MqttClient {
         self.is_connected = true;
 
         // 启动事件循环任务
-        let message_sender = self.message_sender.clone();
+        let sender = self.message_sender.clone();
         let _client_id = self.config.client_id.clone();
         tokio::spawn(async move {
             loop {
@@ -140,7 +140,6 @@ impl MqttClient {
                             Event::Incoming(packet) => {
                                 log::debug!("📨 AI-Core received MQTT packet: {:?}", packet);
                                 
-                                if let Some(sender) = message_sender.read().await.as_ref() {
                                     if let rumqttc::v5::mqttbytes::v5::Packet::Publish(publish, _) = packet.as_ref() {
                                         let message = MqttMessage {
                                             id: uuid::Uuid::new_v4().to_string(),
@@ -158,7 +157,6 @@ impl MqttClient {
                                             log::error!("Failed to send message: {}", e);
                                         }
                                     }
-                                }
                             }
                             Event::Outgoing(packet) => {
                                 log::debug!("📤 AI-Core outgoing MQTT packet: {:?}", packet);
@@ -251,12 +249,6 @@ impl MqttClient {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let payload = serde_json::to_vec(data)?;
         self.publish(topic, &payload, qos, retain).await
-    }
-
-    /// 设置消息接收通道
-    pub async fn set_message_sender(&self, sender: mpsc::UnboundedSender<MqttMessage>) {
-        let mut message_sender = self.message_sender.write().await;
-        *message_sender = Some(sender);
     }
 
 

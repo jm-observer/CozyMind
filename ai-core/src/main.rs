@@ -3,7 +3,7 @@ use rumqttc::v5::mqttbytes::QoS;
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, RwLock};
 
 mod mqtt;
 use mqtt::{MqttClient, ClientConfig};
@@ -235,8 +235,19 @@ async fn main() -> io::Result<()> {
     log::info!("🤖 AI services endpoints: http://{}:{}/ai/*", host, port);
     log::info!("🔌 MQTT client endpoints: http://{}:{}/mqtt/*", host, port);
 
-    let mut mqtt_client = MqttClient::new(ClientConfig::default());
+    let (tx, mut rx) = mpsc::unbounded_channel();
+
+    let mut mqtt_client = MqttClient::new(ClientConfig::ai_core_default(), tx);
+
+    tokio::spawn(async move {
+        while let Some(message) = rx.recv().await {
+            log::info!("📨 Received MQTT message: {:?}", message);
+        }
+    });
+
     mqtt_client.connect().await.unwrap();
+
+
 
     // 创建MQTT客户端共享状态
     let mqtt_client = Arc::new(RwLock::new(Some(mqtt_client)));
