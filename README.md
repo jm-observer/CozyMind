@@ -35,8 +35,6 @@ Rust实现的通用模型库，提供：
 
 ## 快速开始
 
-> 💡 **快速参考**: 查看 [QUICK_REFERENCE.md](QUICK_REFERENCE.md) 获取常用命令速查表
-
 ### 前置要求
 - Node.js (用于GUI)
 - Rust 1.70+ (用于AI-Core和Rust-Models)
@@ -47,16 +45,17 @@ Rust实现的通用模型库，提供：
 
 ```bash
 # 1. 复制环境变量配置文件
-cp env.config .env
+cp config.env .env
 
 # 2. 根据需要修改 .env 文件中的配置
 # 主要配置项：
+# - AI_CORE_HOST: AI-Core 服务地址（默认 127.0.0.1）
 # - AI_CORE_PORT: AI-Core 服务端口（默认 9800）
+# - AI_CORE_MQTT_CLIENT_ID: MQTT 客户端 ID（默认 ai-core）
 # - BROKER_MQTT_V4_PORT: MQTT Broker v4 端口（默认 8883）
 # - BROKER_MQTT_V5_PORT: MQTT Broker v5 端口（默认 8884）
+# - MQTT_KEEP_ALIVE: MQTT 保持连接时间（默认 60 秒）
 ```
-
-详细配置说明请查看 [环境变量配置文档](ENV_CONFIG.md)
 
 ### 启动服务
 
@@ -78,14 +77,11 @@ npm run dev
 
 ### 文档链接
 
-- ⚡ [快速参考](QUICK_REFERENCE.md) - 常用命令和配置速查表
 - 📖 [API使用示例](docs/api-examples.md) - API调用示例
 - 🏗️ [架构设计](docs/architecture.md) - 系统架构说明
 - 💻 [开发指南](docs/development.md) - 开发流程和规范
 - 📁 [项目结构](PROJECT_STRUCTURE.md) - 项目结构说明
-- 📦 [Cargo Workspace 配置](WORKSPACE.md) - Workspace 使用说明
-- ⚙️ [环境变量配置](ENV_CONFIG.md) - 环境变量配置说明
-- 🔌 [MQTT客户端配置示例](MQTT_CLIENT_CONFIG_EXAMPLE.md) - MQTT客户端配置详解
+- 🚀 [快速开始指南](QUICK_START.md) - 快速开始教程
 
 ## 许可证
 
