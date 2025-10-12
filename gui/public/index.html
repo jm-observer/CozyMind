@@ -7,21 +7,25 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🧠 CozyMind</h1>
-            <p class="subtitle">AI 服务管理与监控面板</p>
-        </header>
-        
-        <!-- 主导航标签 -->
-        <nav class="main-nav">
-            <button class="nav-btn active" data-section="services" onclick="switchSection('services')">
-                🔗 服务管理
-            </button>
-            <button class="nav-btn" data-section="messages" onclick="switchSection('messages')">
-                💬 消息预设
-            </button>
-        </nav>
+    <!-- 固定头部区域 -->
+    <div class="fixed-header">
+        <div class="container">
+            <header>
+                <h1>🧠 CozyMind</h1>
+                <p class="subtitle">AI 服务管理与监控面板</p>
+            </header>
+            
+            <!-- 主导航标签 -->
+            <nav class="main-nav">
+                <button class="nav-btn active" data-section="services" onclick="switchSection('services')">
+                    🔗 服务管理
+                </button>
+                <button class="nav-btn" data-section="messages" onclick="switchSection('messages')">
+                    💬 消息预设
+                </button>
+            </nav>
+        </div>
+    </div>
 
         <main>
             <!-- 服务管理部分 (AI-Core + Ollama) -->
@@ -226,7 +230,6 @@
         <footer>
             <p>CozyMind v0.1.0 | 自动检测间隔: 5秒</p>
         </footer>
-    </div>
 
     <script src="app.js"></script>
 </body>

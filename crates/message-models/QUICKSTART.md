@@ -22,8 +22,12 @@ use message_models::prelude::*;
 #### 创建和解析用户消息
 
 ```rust
-// 创建用户消息
+// 创建用户消息（自动包含 meta：v0 + 东八区时间）
 let msg = Envelope::user("明早 7 点提醒我开会");
+
+// meta 总是存在
+println!("版本: {}", msg.meta.schema_version);
+println!("时间: {}", msg.meta.timestamp);
 
 // 序列化为 JSON
 let json = msg.to_json().unwrap();
@@ -56,19 +60,23 @@ let event = EventContent::error("mod-002", error);
 let msg = Envelope::event(event);
 ```
 
-#### 添加版本信息
+#### 自定义版本信息
 
 ```rust
-use chrono::Utc;
+// 使用默认创建（推荐）
+let msg = Envelope::user("测试消息");
+// meta 自动包含 v0 + 东八区时间
 
+// 如果需要自定义 meta
+let custom_meta = MessageMeta::new();
+let msg = Envelope::user("测试消息").with_meta(custom_meta);
+
+// 或者手动创建
 let meta = MessageMeta {
     schema_version: "v0".to_string(),
-    timestamp: Some(Utc::now()),
-    locale: Some("zh-CN".to_string()),
-    timezone: Some("Asia/Shanghai".to_string()),
+    timestamp: Utc::now().with_timezone(&FixedOffset::east_opt(8 * 3600).unwrap()),
     additional: HashMap::new(),
 };
-
 let msg = Envelope::user("测试消息").with_meta(meta);
 ```
 
@@ -102,14 +110,8 @@ use std::collections::HashMap;
 use chrono::Utc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. 创建带完整 meta 的用户消息
-    let meta = MessageMeta {
-        schema_version: "v0".to_string(),
-        timestamp: Some(Utc::now()),
-        locale: Some("zh-CN".to_string()),
-        timezone: Some("Asia/Shanghai".to_string()),
-        additional: HashMap::new(),
-    };
+    // 1. 创建带完整 meta 的用户消息（使用东八区时间）
+    let meta = MessageMeta::new();
     
     let user_msg = Envelope::user("明早 7 点提醒我开会").with_meta(meta);
     
@@ -226,4 +228,5 @@ cargo run --example version_demo -p message-models
 ## 需要帮助？
 
 查看 `examples/` 目录下的完整示例代码。
+
 

@@ -1,5 +1,4 @@
 use message_models::prelude::*;
-use std::collections::HashMap;
 
 fn main() {
     println!("=== Message Models 版本支持演示 ===\n");
@@ -12,15 +11,9 @@ fn main() {
     println!("  当前默认版本: {}", SchemaVersion::default());
     println!("  最新版本: {}\n", SchemaVersion::latest());
 
-    // 2. 创建带版本信息的消息
+    // 2. 创建带版本信息的消息（使用东八区时间）
     println!("🔖 创建带版本信息的消息:");
-    let meta = MessageMeta {
-        schema_version: "v0".to_string(),
-        timestamp: Some(chrono::Utc::now()),
-        locale: Some("zh-CN".to_string()),
-        timezone: Some("Asia/Shanghai".to_string()),
-        additional: HashMap::new(),
-    };
+    let meta = MessageMeta::new();
     
     let msg = Envelope::user("测试消息").with_meta(meta);
     println!("{}\n", msg.to_json_pretty().unwrap());
@@ -61,9 +54,7 @@ fn main() {
                 // 尝试获取 v0 版本的信封
                 if let Some(envelope) = versioned.as_v0() {
                     println!("    类型: {:?}", envelope.message_type);
-                    if let Some(meta) = &envelope.meta {
-                        println!("    Meta: schema_version={}", meta.schema_version);
-                    }
+                    println!("    Meta: schema_version={}", envelope.meta.schema_version);
                 }
             }
             Err(e) => println!("    ❌ 解析失败: {}", e),
@@ -104,4 +95,5 @@ fn main() {
     
     println!("\n=== 演示完成 ===");
 }
+
 

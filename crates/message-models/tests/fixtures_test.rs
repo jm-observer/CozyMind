@@ -7,9 +7,7 @@ fn test_user_text_fixture_with_version() {
   "content": "明早 7 点提醒我开会",
   "meta": {
     "schema_version": "v0",
-    "timestamp": "2024-10-11T08:00:00Z",
-    "locale": "zh-CN",
-    "timezone": "Asia/Shanghai"
+    "timestamp": "2024-10-11T08:00:00Z"
   }
 }"#;
 
@@ -19,11 +17,10 @@ fn test_user_text_fixture_with_version() {
     let envelope = versioned.as_v0().unwrap();
     assert_eq!(envelope.message_type, MessageType::User);
 
-    let meta = envelope.meta.as_ref().unwrap();
+    let meta = &envelope.meta;
     assert_eq!(meta.schema_version, "v0");
-    assert!(meta.timestamp.is_some());
-    assert_eq!(meta.locale.as_ref().unwrap(), "zh-CN");
-    assert_eq!(meta.timezone.as_ref().unwrap(), "Asia/Shanghai");
+    // timestamp 总是存在，fixture 中的时间是 UTC
+    assert_eq!(meta.timestamp.offset().local_minus_utc(), 0);
 
     match &envelope.content {
         MessageContent::Text(text) => assert_eq!(text, "明早 7 点提醒我开会"),
@@ -54,9 +51,10 @@ fn test_event_ok_fixture_with_version() {
     let envelope = versioned.as_v0().unwrap();
     assert_eq!(envelope.message_type, MessageType::Event);
 
-    let meta = envelope.meta.as_ref().unwrap();
+    let meta = &envelope.meta;
     assert_eq!(meta.schema_version, "v0");
-    assert!(meta.timestamp.is_some());
+    // timestamp 总是存在，fixture 中的时间是 UTC
+    assert_eq!(meta.timestamp.offset().local_minus_utc(), 0);
 
     match &envelope.content {
         MessageContent::Event(event) => {
@@ -99,7 +97,7 @@ fn test_event_error_fixture_with_version() {
     let envelope = versioned.as_v0().unwrap();
     assert_eq!(envelope.message_type, MessageType::Event);
 
-    let meta = envelope.meta.as_ref().unwrap();
+    let meta = &envelope.meta;
     assert_eq!(meta.schema_version, "v0");
 
     match &envelope.content {
@@ -131,14 +129,8 @@ fn test_backward_compatibility_without_version() {
 
 #[test]
 fn test_version_round_trip() {
-    // 创建带版本的消息
-    let meta = MessageMeta {
-        schema_version: "v0".to_string(),
-        timestamp: Some(chrono::Utc::now()),
-        locale: Some("zh-CN".to_string()),
-        timezone: None,
-        additional: std::collections::HashMap::new(),
-    };
+    // 创建带版本的消息（使用东八区时间）
+    let meta = MessageMeta::new();
 
     let envelope = Envelope::user("测试消息").with_meta(meta);
     let json = envelope.to_json().unwrap();
@@ -154,4 +146,5 @@ fn test_version_round_trip() {
     let versioned2 = VersionedEnvelope::from_json(&json2).unwrap();
     assert_eq!(versioned2.version(), SchemaVersion::V0);
 }
+
 

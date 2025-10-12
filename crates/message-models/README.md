@@ -81,27 +81,21 @@ assert_eq!(versioned.version(), SchemaVersion::V0); // 默认 v0
 
 ### Envelope (消息信封)
 
-顶层消息结构，包含消息类型、内容和元数据。
+顶层消息结构，包含消息类型、内容和元数据。**meta 字段是必填的**，创建消息时会自动使用默认值。
 
 ```rust
 use message_models::{Envelope, MessageMeta};
 use std::collections::HashMap;
 
-// 创建用户消息
+// 创建用户消息（自动使用默认 meta：v0 + 东八区时间）
 let msg = Envelope::user("明早 7 点提醒我开会");
+// msg.meta 总是存在
 
-// 创建带版本信息的消息
-let meta = MessageMeta {
-    schema_version: "v0".to_string(),
-    timestamp: Some(chrono::Utc::now()),
-    locale: Some("zh-CN".to_string()),
-    timezone: Some("Asia/Shanghai".to_string()),
-    additional: HashMap::new(),
-};
-
+// 创建带自定义 meta 的消息
+let meta = MessageMeta::new();
 let msg = Envelope::user("测试").with_meta(meta);
 
-// 转换为 JSON
+// 转换为 JSON（meta 总是包含在输出中）
 let json = msg.to_json().unwrap();
 ```
 
@@ -152,18 +146,21 @@ let msg = Envelope::event(event);
 
 ### MessageMeta (消息元数据)
 
-可选的元数据信息，**包含版本信息**：
+**必填的**元数据信息，包含版本信息和东八区时间戳：
 
 ```rust
 use message_models::MessageMeta;
-use chrono::Utc;
+
+// 使用默认值（v0 版本 + 东八区当前时间）
+let meta = MessageMeta::new();
+
+// 或者手动创建
+use chrono::{Utc, FixedOffset};
 use std::collections::HashMap;
 
 let meta = MessageMeta {
     schema_version: "v0".to_string(), // 版本信息
-    timestamp: Some(Utc::now()),
-    locale: Some("zh-CN".to_string()),
-    timezone: Some("Asia/Shanghai".to_string()),
+    timestamp: Utc::now().with_timezone(&FixedOffset::east_opt(8 * 3600).unwrap()),
     additional: HashMap::new(),
 };
 ```
@@ -177,6 +174,10 @@ use message_models::{Envelope, MessageContent};
 
 let json = r#"{ "type": "user", "content": "明早 7 点提醒我开会" }"#;
 let msg: Envelope = Envelope::from_json(json).unwrap();
+
+// meta 总是存在
+println!("版本: {}", msg.meta.schema_version);
+println!("时间: {}", msg.meta.timestamp);
 
 match msg.content {
     MessageContent::Text(text) => println!("用户说: {}", text),
@@ -318,9 +319,10 @@ message-models/
 ## 最佳实践
 
 1. **使用 VersionedEnvelope** - 对于需要处理多个版本的场景，使用 `VersionedEnvelope` 可以自动处理版本检测
-2. **添加版本信息** - 在创建消息时总是包含 `meta.schema_version` 字段
+2. **meta 自动包含** - 创建消息时会自动包含 meta（v0 + 东八区时间），无需手动设置
 3. **验证事件** - 对于事件消息，使用 `validate()` 方法确保数据完整性
 4. **使用 prelude** - 通过 `use message_models::prelude::*;` 快速导入常用类型
+5. **时间戳自动生成** - 所有消息的 timestamp 都会自动设置为东八区当前时间
 
 ## 许可证
 

@@ -1,8 +1,14 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+mod ollama_client;
+mod system_prompt;
+
+use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use message_models::{Envelope, MessageContent};
 use mqtt_client::{ClientConfig, MqttClient, QoS};
+use ollama_client::OllamaClient;
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
+use system_prompt::SessionStore;
 use tokio::sync::{mpsc, RwLock};
 
 /// 健康检查响应结构
@@ -37,187 +43,75 @@ async fn index() -> impl Responder {
     }))
 }
 
-/// MQTT 客户端状态
-#[get("/mqtt/status")]
-async fn mqtt_status(client: web::Data<Arc<RwLock<Option<MqttClient>>>>) -> impl Responder {
-    let client_guard = client.read().await;
-    if let Some(client) = client_guard.as_ref() {
-        let info = client.get_client_info();
-        HttpResponse::Ok().json(serde_json::json!({
-            "status": "connected",
-            "client_info": info
-        }))
-    } else {
-        HttpResponse::Ok().json(serde_json::json!({
-            "status": "disconnected",
-            "message": "MQTT client is not connected"
-        }))
-    }
-}
 
-
-/// 断开 MQTT 连接
-#[post("/mqtt/disconnect")]
-async fn mqtt_disconnect(client: web::Data<Arc<RwLock<Option<MqttClient>>>>) -> impl Responder {
-    let mut client_guard = client.write().await;
-    
-    if let Some(mut client) = client_guard.take() {
-        match client.disconnect().await {
-            Ok(_) => {
-                HttpResponse::Ok().json(serde_json::json!({
-                    "status": "success",
-                    "message": "MQTT client disconnected successfully"
-                }))
-            }
-            Err(e) => {
-                HttpResponse::InternalServerError().json(serde_json::json!({
-                    "error": format!("Failed to disconnect MQTT client: {}", e)
-                }))
-            }
-        }
-    } else {
-        HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "MQTT client is not connected"
-        }))
-    }
-}
-
-/// 订阅主题
-#[post("/mqtt/subscribe")]
-async fn mqtt_subscribe(
-    client: web::Data<Arc<RwLock<Option<MqttClient>>>>,
-    request: web::Json<SubscribeRequest>,
-) -> impl Responder {
-    let client_guard = client.read().await;
-    
-    if let Some(client) = client_guard.as_ref() {
-        let qos = match request.qos {
-            0 => QoS::AtMostOnce,
-            1 => QoS::AtLeastOnce,
-            2 => QoS::ExactlyOnce,
-            _ => QoS::AtMostOnce,
-        };
-        
-        match client.subscribe(&request.topic, qos).await {
-            Ok(_) => {
-                HttpResponse::Ok().json(serde_json::json!({
-                    "status": "success",
-                    "message": format!("Subscribed to topic: {}", request.topic)
-                }))
-            }
-            Err(e) => {
-                HttpResponse::InternalServerError().json(serde_json::json!({
-                    "error": format!("Failed to subscribe to topic: {}", e)
-                }))
+/// 处理用户消息并发送给 Ollama
+/// 
+/// 这是一个独立的异步函数，用于处理从 MQTT 接收的用户消息
+async fn handle_user_message(payload: Vec<u8>, ollama_client: OllamaClient) {
+    // 解析 MQTT 消息
+    match String::from_utf8(payload) {
+        Ok(json_str) => {
+            log::debug!("📝 解析用户消息: {}", json_str);
+            
+            // 尝试解析为 Envelope
+            match Envelope::from_json(&json_str) {
+                Ok(envelope) => {
+                    // 提取消息内容
+                    let user_prompt = match envelope.content {
+                        MessageContent::Text(text) => text,
+                        _ => {
+                            log::warn!("⚠️  非文本消息，跳过");
+                            return;
+                        }
+                    };
+                    
+                    log::info!("💬 用户提问: {}", user_prompt);
+                    
+                    // 调用 Ollama
+                    match ollama_client.ask(&user_prompt, "gpt-oss:20b", false).await {
+                        Ok(response) => {
+                            log::info!("✅ Ollama 响应: {}", response);
+                            // TODO: 将响应发送回 MQTT 或其他处理
+                        }
+                        Err(e) => {
+                            log::error!("❌ Ollama 请求失败: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("⚠️  消息解析失败，尝试作为纯文本处理: {}", e);
+                    
+                    // 作为纯文本处理
+                    log::info!("💬 用户提问（纯文本）: {}", json_str);
+                    
+                    match ollama_client.ask(&json_str, "gpt-oss:20b", false).await {
+                        Ok(response) => {
+                            log::info!("✅ Ollama 响应: {}", response);
+                        }
+                        Err(e) => {
+                            log::error!("❌ Ollama 请求失败: {}", e);
+                        }
+                    }
+                }
             }
         }
-    } else {
-        HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "MQTT client is not connected"
-        }))
-    }
-}
-
-/// 取消订阅主题
-#[post("/mqtt/unsubscribe")]
-async fn mqtt_unsubscribe(
-    client: web::Data<Arc<RwLock<Option<MqttClient>>>>,
-    request: web::Json<UnsubscribeRequest>,
-) -> impl Responder {
-    let client_guard = client.read().await;
-    
-    if let Some(client) = client_guard.as_ref() {
-        match client.unsubscribe(&request.topic).await {
-            Ok(_) => {
-                HttpResponse::Ok().json(serde_json::json!({
-                    "status": "success",
-                    "message": format!("Unsubscribed from topic: {}", request.topic)
-                }))
-            }
-            Err(e) => {
-                HttpResponse::InternalServerError().json(serde_json::json!({
-                    "error": format!("Failed to unsubscribe from topic: {}", e)
-                }))
-            }
+        Err(e) => {
+            log::error!("❌ 消息 UTF-8 解析失败: {}", e);
         }
-    } else {
-        HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "MQTT client is not connected"
-        }))
     }
 }
 
-/// 发布消息
-#[post("/mqtt/publish")]
-async fn mqtt_publish(
-    client: web::Data<Arc<RwLock<Option<MqttClient>>>>,
-    request: web::Json<PublishRequest>,
-) -> impl Responder {
-    let client_guard = client.read().await;
-    
-    if let Some(client) = client_guard.as_ref() {
-        let qos = match request.qos.unwrap_or(0) {
-            0 => QoS::AtMostOnce,
-            1 => QoS::AtLeastOnce,
-            2 => QoS::ExactlyOnce,
-            _ => QoS::AtMostOnce,
-        };
-        
-        match client.publish(
-            &request.topic,
-            &request.payload,
-            qos,
-            request.retain.unwrap_or(false),
-        ).await {
-            Ok(_) => {
-                HttpResponse::Ok().json(serde_json::json!({
-                    "status": "success",
-                    "message": "Message published successfully"
-                }))
-            }
-            Err(e) => {
-                HttpResponse::InternalServerError().json(serde_json::json!({
-                    "error": format!("Failed to publish message: {}", e)
-                }))
-            }
-        }
-    } else {
-        HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "MQTT client is not connected"
-        }))
-    }
-}
-
-/// 订阅请求结构
-#[derive(Deserialize)]
-struct SubscribeRequest {
-    topic: String,
-    qos: u8,
-}
-
-/// 取消订阅请求结构
-#[derive(Deserialize)]
-struct UnsubscribeRequest {
-    topic: String,
-}
-
-/// 发布请求结构
-#[derive(Deserialize)]
-struct PublishRequest {
-    topic: String,
-    payload: Vec<u8>,
-    qos: Option<u8>,
-    retain: Option<bool>,
-}
 
 
-#[actix_web::main]
-async fn main() -> io::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     // 加载环境变量
     dotenvy::dotenv().ok();
     
-    // 初始化日志
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    // 初始化日志 - 强制使用 info 级别，不受环境变量影响
+    env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Info)
+        .init();
 
     // 从环境变量读取配置，如果未设置则使用默认值
     let host = std::env::var("AI_CORE_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
@@ -229,8 +123,7 @@ async fn main() -> io::Result<()> {
     log::info!("🚀 Starting CozyMind AI-Core server...");
     log::info!("📡 Server listening on http://{}:{}", host, port);
     log::info!("🏥 Health check endpoint: http://{}:{}/health", host, port);
-    log::info!("🤖 AI services endpoints: http://{}:{}/ai/*", host, port);
-    log::info!("🔌 MQTT client endpoints: http://{}:{}/mqtt/*", host, port);
+    log::info!("🧠 System prompt API: http://{}:{}/api/system-prompt", host, port);
 
     let (tx, mut rx) = mpsc::unbounded_channel();
 
@@ -244,29 +137,75 @@ async fn main() -> io::Result<()> {
 
     let mut mqtt_client = MqttClient::new(mqtt_config, tx);
 
+    // 创建 Ollama 客户端（需要在 spawn 之前创建以便在异步任务中使用）
+    let ollama_client_for_mqtt = OllamaClient::from_env();
+    log::info!("🧠 Ollama client initialized");
+
     tokio::spawn(async move {
         while let Some(message) = rx.recv().await {
             log::info!("📨 Received MQTT message: {:?}", message);
+            match message.topic.as_str() {
+                "/ai-core/from-user/message" => {
+                    log::info!("📨 Received MQTT message from user");
+                    
+                    // 发起独立的异步任务处理用户消息
+                    let payload = message.payload.clone();
+                    let ollama_client = ollama_client_for_mqtt.clone();
+                    
+                    tokio::spawn(async move {
+                        handle_user_message(payload, ollama_client).await;
+                    });
+                }
+                "/ai-core/from-module/message" => {
+                    log::info!("📨 Received MQTT message from module: {:?}", message);
+                }
+                _ => {
+                    log::info!("📨 Received MQTT message from unknown topic: {:?}", message);
+                }
+            }
         }
     });
 
     mqtt_client.connect().await.unwrap();
 
+    if let Some(client) = mqtt_client.client.as_ref() {
+        client.subscribe("/ai-core/from-user/message", QoS::AtLeastOnce).await?;
+        client.subscribe("/ai-core/from-module/message", QoS::AtLeastOnce).await?;
+        // client.subscribe("topic", QoS::AtLeastOnce).await?;
+    }
 
+    // 创建 Ollama 客户端（用于 web API）
+    let ollama_client = OllamaClient::from_env();
+    log::info!("🧠 Ollama web client initialized");
 
-    // 创建MQTT客户端共享状态
+    // 创建会话存储
+    let session_store = Arc::new(SessionStore::new());
+    log::info!("💾 Session store initialized");
+    
+    start_web(mqtt_client, ollama_client, session_store, host, port).await?;
+    Ok(())
+    
+}
+
+async fn start_web(
+    mqtt_client: MqttClient,
+    ollama_client: OllamaClient,
+    session_store: Arc<SessionStore>,
+    host: String,
+    port: u16,
+) -> io::Result<()> {
+    // 创建共享状态
     let mqtt_client = Arc::new(RwLock::new(Some(mqtt_client)));
+    let ollama_client = Arc::new(ollama_client);
 
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(mqtt_client.clone()))
+            .app_data(web::Data::new(ollama_client.clone()))
+            .app_data(web::Data::new(session_store.clone()))
             .service(index)
             .service(health_check)
-            .service(mqtt_status)
-            .service(mqtt_disconnect)
-            .service(mqtt_subscribe)
-            .service(mqtt_unsubscribe)
-            .service(mqtt_publish)
+            .service(system_prompt::set_system_prompt)
     })
     .bind((host.as_str(), port))?
     .run()

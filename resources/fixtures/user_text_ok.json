@@ -3,8 +3,6 @@
   "content": "明早 7 点提醒我开会",
   "meta": {
     "schema_version": "v0",
-    "timestamp": "2024-10-11T08:00:00Z",
-    "locale": "zh-CN",
-    "timezone": "Asia/Shanghai"
+    "timestamp": "2024-10-11T08:00:00Z"
   }
 }

@@ -28,19 +28,10 @@ fn main() {
                             println!("  消息类型: {:?}", envelope.message_type);
 
                             // 显示 meta 信息
-                            if let Some(meta) = &envelope.meta {
-                                println!("  Meta 信息:");
-                                println!("    - schema_version: {}", meta.schema_version);
-                                if let Some(ts) = &meta.timestamp {
-                                    println!("    - timestamp: {}", ts);
-                                }
-                                if let Some(locale) = &meta.locale {
-                                    println!("    - locale: {}", locale);
-                                }
-                                if let Some(tz) = &meta.timezone {
-                                    println!("    - timezone: {}", tz);
-                                }
-                            }
+                            let meta = &envelope.meta;
+                            println!("  Meta 信息:");
+                            println!("    - schema_version: {}", meta.schema_version);
+                            println!("    - timestamp: {}", meta.timestamp);
 
                             // 显示内容信息
                             match &envelope.content {
@@ -97,4 +88,5 @@ fn main() {
     println!("\n💡 提示: 所有 fixtures 都包含 meta.schema_version 字段");
     println!("   这确保了消息可以被正确地版本化和解析");
 }
+
 

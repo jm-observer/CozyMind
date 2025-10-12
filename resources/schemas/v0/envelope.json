@@ -4,7 +4,8 @@
     "type": "object",
     "required": [
         "type",
-        "content"
+        "content",
+        "meta"
     ],
     "properties": {
         "type": {
@@ -22,6 +23,9 @@
         },
         "meta": {
             "type": "object",
+            "required": [
+                "timestamp"
+            ],
             "properties": {
                 "schema_version": {
                     "type": "string",
@@ -30,12 +34,6 @@
                 "timestamp": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "locale": {
-                    "type": "string"
-                },
-                "timezone": {
-                    "type": "string"
                 }
             },
             "additionalProperties": true

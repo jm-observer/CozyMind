@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -17,12 +17,8 @@ pub enum MessageType {
 pub struct MessageMeta {
     #[serde(default = "default_schema_version")]
     pub schema_version: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timestamp: Option<DateTime<Utc>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub locale: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timezone: Option<String>,
+    #[serde(default = "default_timestamp")]
+    pub timestamp: DateTime<FixedOffset>,
     #[serde(flatten)]
     pub additional: HashMap<String, Value>,
 }
@@ -31,13 +27,37 @@ fn default_schema_version() -> String {
     "v0".to_string()
 }
 
+/// 获取东八区时区
+fn china_timezone() -> FixedOffset {
+    FixedOffset::east_opt(8 * 3600).unwrap()
+}
+
+/// 默认时间戳（东八区当前时间）
+fn default_timestamp() -> DateTime<FixedOffset> {
+    Utc::now().with_timezone(&china_timezone())
+}
+
 impl Default for MessageMeta {
     fn default() -> Self {
         Self {
             schema_version: default_schema_version(),
-            timestamp: None,
-            locale: None,
-            timezone: None,
+            timestamp: default_timestamp(),
+            additional: HashMap::new(),
+        }
+    }
+}
+
+impl MessageMeta {
+    /// 创建一个新的 MessageMeta，使用默认的 schema_version (v0) 和东八区当前时间
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 使用东八区当前时间创建 MessageMeta
+    pub fn with_china_time() -> Self {
+        Self {
+            schema_version: default_schema_version(),
+            timestamp: Utc::now().with_timezone(&china_timezone()),
             additional: HashMap::new(),
         }
     }
@@ -130,46 +150,46 @@ pub struct Envelope {
     #[serde(rename = "type")]
     pub message_type: MessageType,
     pub content: MessageContent,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub meta: Option<MessageMeta>,
+    #[serde(default)]
+    pub meta: MessageMeta,
     #[serde(flatten)]
     pub additional: HashMap<String, Value>,
 }
 
 impl Envelope {
-    /// 创建用户消息
+    /// 创建用户消息（使用默认 meta）
     pub fn user(content: impl Into<String>) -> Self {
         Self {
             message_type: MessageType::User,
             content: MessageContent::Text(content.into()),
-            meta: None,
+            meta: MessageMeta::default(),
             additional: HashMap::new(),
         }
     }
 
-    /// 创建事件消息
+    /// 创建事件消息（使用默认 meta）
     pub fn event(content: EventContent) -> Self {
         Self {
             message_type: MessageType::Event,
             content: MessageContent::Event(content),
-            meta: None,
+            meta: MessageMeta::default(),
             additional: HashMap::new(),
         }
     }
 
-    /// 创建系统消息
+    /// 创建系统消息（使用默认 meta）
     pub fn system(content: HashMap<String, Value>) -> Self {
         Self {
             message_type: MessageType::System,
             content: MessageContent::Object(content),
-            meta: None,
+            meta: MessageMeta::default(),
             additional: HashMap::new(),
         }
     }
 
     /// 设置元数据
     pub fn with_meta(mut self, meta: MessageMeta) -> Self {
-        self.meta = Some(meta);
+        self.meta = meta;
         self
     }
 
@@ -280,20 +300,23 @@ mod tests {
 
     #[test]
     fn test_meta() {
-        let meta = MessageMeta {
-            schema_version: "v0".to_string(),
-            timestamp: Some(Utc::now()),
-            locale: Some("zh-CN".to_string()),
-            timezone: Some("Asia/Shanghai".to_string()),
-            additional: HashMap::new(),
-        };
+        // 测试使用默认值（东八区时间）
+        let meta = MessageMeta::new();
+        assert_eq!(meta.schema_version, "v0");
+        
+        // 验证时区是东八区（UTC+8）
+        assert_eq!(meta.timestamp.offset().local_minus_utc(), 8 * 3600);
 
         let msg = Envelope::user("测试").with_meta(meta);
-        assert!(msg.meta.is_some());
+        // meta 总是存在
+        assert_eq!(msg.meta.schema_version, "v0");
 
         let json = msg.to_json().unwrap();
         let parsed: Envelope = Envelope::from_json(&json).unwrap();
-        assert!(parsed.meta.is_some());
+        // meta 总是存在
+        assert_eq!(parsed.meta.schema_version, "v0");
+        assert_eq!(parsed.meta.timestamp.offset().local_minus_utc(), 8 * 3600);
     }
 }
+
 
