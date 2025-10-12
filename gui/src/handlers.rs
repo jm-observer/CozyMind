@@ -705,3 +705,157 @@ pub async fn delete_message(state: web::Data<AppState>, id: web::Path<i32>) -> i
         }))
     }
 }
+
+// ==================== MQTT APIs ====================
+
+/// 连接 MQTT Broker
+#[post("/api/mqtt/connect")]
+pub async fn mqtt_connect(
+    state: web::Data<AppState>,
+    request: web::Json<MqttConnectRequest>,
+) -> impl Responder {
+    use mqtt_client::{ClientConfig, MqttClient, QoS};
+    use tokio::sync::mpsc;
+    
+    let req = request.into_inner();
+    
+    // 创建消息通道
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    
+    // 创建 MQTT 客户端配置
+    let config = ClientConfig {
+        client_id: format!("gui-client-{}", uuid::Uuid::new_v4()),
+        broker_host: req.host,
+        broker_port: req.port,
+        username: None,
+        password: None,
+        clean_session: true,
+        keep_alive: 60,
+    };
+    
+    let mut mqtt_client = MqttClient::new(config, tx);
+    
+    // 连接
+    if let Err(e) = mqtt_client.connect().await {
+        return HttpResponse::InternalServerError().json(serde_json::json!({
+            "success": false,
+            "error": format!("连接失败: {}", e)
+        }));
+    }
+    
+    // 订阅主题
+    if let Some(client) = mqtt_client.client.as_ref() {
+        if let Err(e) = client.subscribe(&req.subscribe_topic, QoS::AtLeastOnce).await {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "success": false,
+                "error": format!("订阅失败: {}", e)
+            }));
+        }
+    }
+    
+    // 保存客户端
+    let mut mqtt_client_guard = state.mqtt_client.write().await;
+    *mqtt_client_guard = Some(mqtt_client);
+    drop(mqtt_client_guard);
+    
+    // 启动消息接收任务
+    let mqtt_messages_queue = state.mqtt_messages.clone();
+    tokio::spawn(async move {
+        while let Some(message) = rx.recv().await {
+            let payload = String::from_utf8_lossy(&message.payload).to_string();
+            let mqtt_msg = crate::models::MqttMessage {
+                topic: message.topic,
+                payload,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+            };
+            
+            let mut messages = mqtt_messages_queue.write().await;
+            messages.push(mqtt_msg);
+        }
+    });
+    
+    HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+        "message": "MQTT 连接成功"
+    }))
+}
+
+/// 断开 MQTT 连接
+#[post("/api/mqtt/disconnect")]
+pub async fn mqtt_disconnect(state: web::Data<AppState>) -> impl Responder {
+    let mut mqtt_client_guard = state.mqtt_client.write().await;
+    
+    if let Some(mut client) = mqtt_client_guard.take() {
+        if let Err(e) = client.disconnect().await {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "success": false,
+                "error": format!("断开失败: {}", e)
+            }));
+        }
+        
+        HttpResponse::Ok().json(serde_json::json!({
+            "success": true,
+            "message": "MQTT 已断开"
+        }))
+    } else {
+        HttpResponse::BadRequest().json(serde_json::json!({
+            "success": false,
+            "error": "MQTT 未连接"
+        }))
+    }
+}
+
+/// 发布 MQTT 消息
+#[post("/api/mqtt/publish")]
+pub async fn mqtt_publish(
+    state: web::Data<AppState>,
+    request: web::Json<MqttPublishRequest>,
+) -> impl Responder {
+    use mqtt_client::QoS;
+    
+    let req = request.into_inner();
+    let mqtt_client_guard = state.mqtt_client.read().await;
+    
+    if let Some(mqtt_client) = mqtt_client_guard.as_ref() {
+        if let Some(client) = mqtt_client.client.as_ref() {
+            let payload_bytes = req.payload.as_bytes().to_vec();
+            match client.publish(&req.topic, QoS::AtLeastOnce, false, payload_bytes).await {
+                Ok(_) => {
+                    HttpResponse::Ok().json(serde_json::json!({
+                        "success": true,
+                        "message": "消息发布成功"
+                    }))
+                }
+                Err(e) => {
+                    HttpResponse::InternalServerError().json(serde_json::json!({
+                        "success": false,
+                        "error": format!("发布失败: {}", e)
+                    }))
+                }
+            }
+        } else {
+            HttpResponse::BadRequest().json(serde_json::json!({
+                "success": false,
+                "error": "MQTT 客户端未初始化"
+            }))
+        }
+    } else {
+        HttpResponse::BadRequest().json(serde_json::json!({
+            "success": false,
+            "error": "MQTT 未连接"
+        }))
+    }
+}
+
+/// 获取接收到的 MQTT 消息
+#[get("/api/mqtt/messages")]
+pub async fn mqtt_messages(state: web::Data<AppState>) -> impl Responder {
+    let mut messages = state.mqtt_messages.write().await;
+    let result = messages.clone();
+    messages.clear(); // 清空已读消息
+    
+    HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+        "messages": result
+    }))
+}

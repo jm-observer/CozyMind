@@ -4,11 +4,13 @@ use actix_cors::Cors;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use std::fs as std_fs;
+use mqtt_client::MqttClient;
 
 mod models;
 mod handlers;
 
 use models::*;
+
 
 /// 应用状态
 #[derive(Clone)]
@@ -19,6 +21,8 @@ pub struct AppState {
     pub next_core_id: Arc<RwLock<i32>>,
     pub next_ollama_id: Arc<RwLock<i32>>,
     pub next_message_id: Arc<RwLock<i32>>,
+    pub mqtt_client: Arc<RwLock<Option<MqttClient>>>,
+    pub mqtt_messages: Arc<RwLock<Vec<models::MqttMessage>>>,
 }
 
 impl AppState {
@@ -30,6 +34,8 @@ impl AppState {
             next_core_id: Arc::new(RwLock::new(1)),
             next_ollama_id: Arc::new(RwLock::new(1)),
             next_message_id: Arc::new(RwLock::new(1)),
+            mqtt_client: Arc::new(RwLock::new(None)),
+            mqtt_messages: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
@@ -152,6 +158,11 @@ async fn main() -> std::io::Result<()> {
             .service(handlers::add_message)
             .service(handlers::update_message)
             .service(handlers::delete_message)
+            // MQTT APIs
+            .service(handlers::mqtt_connect)
+            .service(handlers::mqtt_disconnect)
+            .service(handlers::mqtt_publish)
+            .service(handlers::mqtt_messages)
             // 静态文件服务
             .service(fs::Files::new("/", "./gui/public").index_file("index.html"))
     })

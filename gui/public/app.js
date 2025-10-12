@@ -52,6 +52,30 @@ function switchSection(section) {
         logCard.style.display = 'none';
         // 每次切换到消息预设页面都重新加载最新数据
         loadMessages();
+    } else if (section === 'model-setup') {
+        console.log('Switching to model-setup section');
+        const modelSetupSection = document.getElementById('modelSetupSection');
+        if (modelSetupSection) {
+            modelSetupSection.classList.add('active');
+            console.log('Model setup section activated');
+            console.log('Model setup section classes:', modelSetupSection.className);
+            console.log('Model setup section display:', window.getComputedStyle(modelSetupSection).display);
+        } else {
+            console.error('Model setup section not found');
+        }
+        logCard.style.display = 'none';
+        initModelSetup();
+    } else if (section === 'chat') {
+        console.log('Switching to chat section');
+        const chatSection = document.getElementById('chatSection');
+        if (chatSection) {
+            chatSection.classList.add('active');
+            console.log('Chat section activated');
+        } else {
+            console.error('Chat section not found');
+        }
+        logCard.style.display = 'none';
+        initChat();
     }
 }
 
@@ -1284,6 +1308,16 @@ function truncate(str, maxLen) {
     return str.substring(0, maxLen) + '...';
 }
 
+function getMessageTypeLabel(type) {
+    const typeLabels = {
+        'system': '系统消息',
+        'user': '用户消息',
+        'event': '事件消息',
+        'assistant': '助手消息'
+    };
+    return typeLabels[type] || type;
+}
+
 function formatDate(dateStr) {
     const date = new Date(dateStr);
     const now = new Date();
@@ -1300,4 +1334,684 @@ function formatDate(dateStr) {
 function formatDateTime(dateStr) {
     const date = new Date(dateStr);
     return date.toLocaleString('zh-CN');
+}
+
+// ========== 模型设定功能 ==========
+
+// 初始化模型设定页面
+async function initModelSetup() {
+    console.log('Initializing model setup...');
+    
+    // 检查关键元素是否存在
+    const modelSetupSection = document.getElementById('modelSetupSection');
+    const modelSetupCard = document.querySelector('.model-setup-card');
+    const select = document.getElementById('modelAiCoreSelect');
+    const textarea = document.getElementById('systemPromptInput');
+    
+    console.log('Model setup section:', modelSetupSection);
+    console.log('Model setup card:', modelSetupCard);
+    console.log('AI Core select:', select);
+    console.log('System prompt textarea:', textarea);
+    
+    // 检查父元素
+    const mainElement = document.querySelector('main');
+    console.log('Main element:', mainElement);
+    if (mainElement) {
+        console.log('Main element padding:', window.getComputedStyle(mainElement).padding);
+        console.log('Main element display:', window.getComputedStyle(mainElement).display);
+    }
+    
+    if (!modelSetupSection) {
+        console.error('Model setup section not found!');
+        return;
+    }
+    
+    if (!modelSetupCard) {
+        console.error('Model setup card not found!');
+        return;
+    }
+    
+    console.log('Model setup card found and ready');
+    
+    // 加载 AI-Core 服务列表到下拉框
+    await loadAICoresForModelSetup();
+    // 加载消息预设
+    await loadMessages();
+    // 更新字符计数
+    updateCharCount();
+    console.log('Model setup initialized, messagePresets loaded:', messagePresets.length);
+    
+    // 测试按钮点击事件
+    const testButton = document.querySelector('button[onclick="showMessageSelector()"]');
+    if (testButton) {
+        console.log('Message selector button found:', testButton);
+        // 添加额外的点击事件监听器
+        testButton.addEventListener('click', function(e) {
+            console.log('Button clicked via event listener');
+            e.preventDefault();
+            showMessageSelector();
+        });
+    } else {
+        console.error('Message selector button not found!');
+    }
+}
+
+// 加载 AI-Core 服务列表
+async function loadAICoresForModelSetup() {
+    try {
+        const response = await fetch('/api/ai-cores');
+        const result = await response.json();
+        
+        if (result.success) {
+            const select = document.getElementById('modelAiCoreSelect');
+            select.innerHTML = '<option value="">-- 请选择 AI-Core 服务 --</option>';
+            
+            let healthyServices = [];
+            let firstHealthyService = null;
+            
+            // 并发检查所有服务的健康状态
+            const healthChecks = result.data.map(async (core) => {
+                try {
+                    const healthResponse = await fetch(`${core.url}/health`);
+                    const isHealthy = healthResponse.ok;
+                    
+                    if (isHealthy) {
+                        healthyServices.push(core);
+                        if (!firstHealthyService) {
+                            firstHealthyService = core;
+                        }
+                    }
+                    
+                    return { core, isHealthy };
+                } catch (error) {
+                    return { core, isHealthy: false };
+                }
+            });
+            
+            const healthResults = await Promise.all(healthChecks);
+            
+            // 添加服务到下拉列表
+            healthResults.forEach(({ core, isHealthy }) => {
+                const option = document.createElement('option');
+                option.value = core.id;
+                const healthIcon = isHealthy ? '🟢' : '🔴';
+                const healthText = isHealthy ? '健康' : '离线';
+                option.textContent = `${healthIcon} ${core.name} (${core.url}) - ${healthText}`;
+                option.dataset.url = core.url;
+                option.dataset.healthy = isHealthy;
+                
+                // 如果是第一个健康的服务，标记为默认选中
+                if (core.id === firstHealthyService?.id) {
+                    option.selected = true;
+                }
+                
+                select.appendChild(option);
+            });
+            
+            // 如果有健康的服务，自动选择第一个并检查可用性
+            if (firstHealthyService) {
+                select.value = firstHealthyService.id;
+                await checkAiCoreAvailability();
+            }
+        }
+    } catch (error) {
+        console.error('加载 AI-Core 列表失败:', error);
+    }
+}
+
+// 检查 AI-Core 服务可用性
+async function checkAiCoreAvailability() {
+    const select = document.getElementById('modelAiCoreSelect');
+    const statusDiv = document.getElementById('aiCoreStatus');
+    const sendButton = document.getElementById('sendButton');
+    
+    if (!select.value) {
+        statusDiv.innerHTML = '';
+        sendButton.disabled = false;
+        return;
+    }
+    
+    const option = select.options[select.selectedIndex];
+    const url = `${option.dataset.url}/health`;
+    const isHealthy = option.dataset.healthy === 'true';
+    
+    // 如果之前检查过是健康的，显示快速状态
+    if (isHealthy) {
+        statusDiv.innerHTML = '<span class="status-online">🟢 服务健康</span>';
+        sendButton.disabled = false;
+    } else {
+        statusDiv.innerHTML = '<span class="status-offline">🔴 服务离线</span>';
+        sendButton.disabled = true;
+        return;
+    }
+    
+    // 重新检查健康状态
+    statusDiv.innerHTML = '<span class="status-checking">🔍 重新检查中...</span>';
+    sendButton.disabled = true;
+    
+    try {
+        const startTime = Date.now();
+        const response = await fetch(url, {
+            method: 'GET',
+            signal: AbortSignal.timeout(3000)
+        });
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        
+        if (response.ok) {
+            const data = await response.json();
+            statusDiv.innerHTML = `<span class="status-online">🟢 服务正常 (${responseTime}ms)</span>`;
+            sendButton.disabled = false;
+            
+            // 更新选项的健康状态
+            option.dataset.healthy = 'true';
+            const healthIcon = '🟢';
+            const healthText = '健康';
+            option.textContent = `${healthIcon} ${option.textContent.split(' - ')[0]} - ${healthText}`;
+        } else {
+            statusDiv.innerHTML = `<span class="status-offline">🔴 服务异常 (HTTP ${response.status})</span>`;
+            sendButton.disabled = true;
+            
+            // 更新选项的健康状态
+            option.dataset.healthy = 'false';
+            const healthIcon = '🔴';
+            const healthText = '离线';
+            option.textContent = `${healthIcon} ${option.textContent.split(' - ')[0]} - ${healthText}`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<span class="status-offline">🔴 连接失败: ${error.message}</span>`;
+        sendButton.disabled = true;
+        
+        // 更新选项的健康状态
+        option.dataset.healthy = 'false';
+        const healthIcon = '🔴';
+        const healthText = '离线';
+        option.textContent = `${healthIcon} ${option.textContent.split(' - ')[0]} - ${healthText}`;
+    }
+}
+
+// 显示消息选择器
+function showMessageSelector() {
+    console.log('showMessageSelector called, messagePresets length:', messagePresets.length);
+    
+    const modal = document.getElementById('messageSelectorModal');
+    const listDiv = document.getElementById('messageSelectorList');
+    
+    console.log('Modal element:', modal);
+    console.log('List div element:', listDiv);
+    
+    if (!modal) {
+        console.error('Message selector modal not found!');
+        return;
+    }
+    
+    if (!listDiv) {
+        console.error('Message selector list div not found!');
+        return;
+    }
+    
+    // 填充消息列表
+    listDiv.innerHTML = '';
+    
+    if (messagePresets.length === 0) {
+        console.log('No message presets available');
+        listDiv.innerHTML = '<p class="empty-message">暂无消息预设，请先在"消息预设"页面创建</p>';
+    } else {
+        console.log('Loading message presets:', messagePresets);
+        messagePresets.forEach(msg => {
+            const item = document.createElement('div');
+            item.className = 'message-selector-item';
+            item.innerHTML = `
+                <div class="message-title">${msg.title}</div>
+                <div class="message-preview">${truncate(msg.content, 100)}</div>
+                <div class="message-type-badge">${getMessageTypeLabel(msg.type)}</div>
+            `;
+            item.onclick = () => selectMessageForPrompt(msg);
+            listDiv.appendChild(item);
+        });
+    }
+    
+    modal.style.display = 'flex';
+    console.log('Modal displayed');
+}
+
+// 关闭消息选择器
+function closeMessageSelector() {
+    document.getElementById('messageSelectorModal').style.display = 'none';
+}
+
+// 选择消息填充到系统参数输入框
+function selectMessageForPrompt(message) {
+    document.getElementById('systemPromptInput').value = message.content;
+    updateCharCount();
+    closeMessageSelector();
+}
+
+// 清空系统参数
+function clearSystemPrompt() {
+    document.getElementById('systemPromptInput').value = '';
+    updateCharCount();
+}
+
+// 更新字符计数
+function updateCharCount() {
+    const textarea = document.getElementById('systemPromptInput');
+    const countSpan = document.getElementById('promptCharCount');
+    if (textarea && countSpan) {
+        countSpan.textContent = textarea.value.length;
+    }
+}
+
+// 发送系统参数
+async function sendSystemPrompt() {
+    const select = document.getElementById('modelAiCoreSelect');
+    const promptInput = document.getElementById('systemPromptInput');
+    const sessionIdInput = document.getElementById('sessionIdInput');
+    const resultDiv = document.getElementById('modelSetupResult');
+    const resultContent = document.getElementById('resultContent');
+    const sendButton = document.getElementById('sendButton');
+    
+    // 验证输入
+    if (!select.value) {
+        alert('请选择 AI-Core 服务');
+        return;
+    }
+    
+    if (!promptInput.value.trim()) {
+        alert('请输入系统参数');
+        return;
+    }
+    
+    // 获取选中的服务信息并检查健康状态
+    const option = select.options[select.selectedIndex];
+    if (option.dataset.healthy !== 'true') {
+        alert('所选服务当前不可用，请选择一个健康的服务');
+        return;
+    }
+    
+    const url = `${option.dataset.url}/api/system-prompt`;
+    
+    // 准备请求数据
+    const requestData = {
+        system_prompt: promptInput.value.trim()
+    };
+    
+    if (sessionIdInput.value.trim()) {
+        requestData.session_id = sessionIdInput.value.trim();
+    }
+    
+    // 显示加载状态
+    sendButton.disabled = true;
+    sendButton.textContent = '⏳ 发送中...';
+    resultDiv.style.display = 'block';
+    resultContent.innerHTML = '<div class="loading">正在发送请求...</div>';
+    
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            // 成功
+            resultContent.innerHTML = `
+                <div class="result-success">
+                    <h4>✅ 发送成功</h4>
+                    <div class="result-item">
+                        <strong>状态:</strong> ${data.status}
+                    </div>
+                    <div class="result-item">
+                        <strong>消息:</strong> ${data.message || '无'}
+                    </div>
+                    <div class="result-item">
+                        <strong>会话 ID:</strong> 
+                        <code>${data.session_id || '未返回'}</code>
+                    </div>
+                    <div class="result-item">
+                        <strong>系统参数:</strong>
+                        <pre>${promptInput.value}</pre>
+                    </div>
+                </div>
+            `;
+            
+            // 如果返回了 session_id，更新输入框
+            if (data.session_id && !sessionIdInput.value) {
+                sessionIdInput.value = data.session_id;
+            }
+        } else {
+            // 失败
+            resultContent.innerHTML = `
+                <div class="result-error">
+                    <h4>❌ 发送失败</h4>
+                    <div class="result-item">
+                        <strong>错误:</strong> ${data.error || data.message || '未知错误'}
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultContent.innerHTML = `
+            <div class="result-error">
+                <h4>❌ 请求失败</h4>
+                <div class="result-item">
+                    <strong>错误:</strong> ${error.message}
+                </div>
+                <div class="result-item">
+                    <strong>建议:</strong> 请检查网络连接和服务状态
+                </div>
+            </div>
+        `;
+    } finally {
+        sendButton.disabled = false;
+        sendButton.textContent = '🚀 发送系统参数';
+    }
+}
+
+// 重置表单
+function resetModelSetupForm() {
+    document.getElementById('modelAiCoreSelect').value = '';
+    document.getElementById('systemPromptInput').value = '';
+    document.getElementById('sessionIdInput').value = '';
+    document.getElementById('aiCoreStatus').innerHTML = '';
+    document.getElementById('modelSetupResult').style.display = 'none';
+    updateCharCount();
+}
+
+// ========== 用户对话功能 ==========
+
+let chatHistory = [];
+let chatStats = { sent: 0, received: 0 };
+let mqttConnected = false;
+
+// 初始化对话页面
+function initChat() {
+    console.log('Initializing chat...');
+    renderChatMessages();
+    updateChatStats();
+    updateChatCharCount();
+    
+    // 绑定输入框事件
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.addEventListener('input', updateChatCharCount);
+    }
+    console.log('Chat initialized');
+}
+
+// 更新对话字符计数
+function updateChatCharCount() {
+    const textarea = document.getElementById('chatInput');
+    const countSpan = document.getElementById('chatCharCount');
+    if (textarea && countSpan) {
+        countSpan.textContent = textarea.value.length;
+    }
+}
+
+// 处理键盘事件 (Ctrl+Enter 发送)
+function handleChatKeydown(event) {
+    if (event.ctrlKey && event.key === 'Enter') {
+        event.preventDefault();
+        sendChatMessage();
+    }
+}
+
+// 连接 MQTT
+async function connectMqtt() {
+    const host = document.getElementById('chatBrokerHost').value;
+    const port = document.getElementById('chatBrokerPort').value;
+    const subscribeTopic = document.getElementById('chatSubscribeTopic').value;
+    const statusDiv = document.getElementById('mqttStatus');
+    const connectBtn = document.getElementById('mqttConnectButton');
+    const disconnectBtn = document.getElementById('mqttDisconnectButton');
+    
+    connectBtn.disabled = true;
+    connectBtn.textContent = '⏳ 连接中...';
+    statusDiv.innerHTML = '<span class="status-connecting">🔄 连接中...</span>';
+    
+    try {
+        const response = await fetch('/api/mqtt/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                host,
+                port: parseInt(port),
+                subscribe_topic: subscribeTopic
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            mqttConnected = true;
+            statusDiv.innerHTML = '<span class="status-connected">🟢 已连接</span>';
+            connectBtn.style.display = 'none';
+            disconnectBtn.style.display = 'block';
+            addChatSystemMessage(`✅ MQTT 连接成功 (${host}:${port})`);
+            
+            // 开始轮询消息
+            startMqttPolling();
+        } else {
+            throw new Error(data.error || '连接失败');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = '<span class="status-disconnected">❌ 连接失败</span>';
+        addChatSystemMessage(`❌ MQTT 连接失败: ${error.message}`);
+    } finally {
+        connectBtn.disabled = false;
+        connectBtn.textContent = '🔌 连接 MQTT';
+    }
+}
+
+// 断开 MQTT
+async function disconnectMqtt() {
+    const statusDiv = document.getElementById('mqttStatus');
+    const connectBtn = document.getElementById('mqttConnectButton');
+    const disconnectBtn = document.getElementById('mqttDisconnectButton');
+    
+    try {
+        const response = await fetch('/api/mqtt/disconnect', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            mqttConnected = false;
+            statusDiv.innerHTML = '<span class="status-disconnected">⚫ 未连接</span>';
+            connectBtn.style.display = 'block';
+            disconnectBtn.style.display = 'none';
+            addChatSystemMessage('🔌 MQTT 已断开');
+            stopMqttPolling();
+        }
+    } catch (error) {
+        addChatSystemMessage(`❌ 断开失败: ${error.message}`);
+    }
+}
+
+let mqttPollingInterval = null;
+
+// 开始轮询 MQTT 消息
+function startMqttPolling() {
+    if (mqttPollingInterval) return;
+    
+    mqttPollingInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/mqtt/messages');
+            const data = await response.json();
+            
+            if (data.success && data.messages && data.messages.length > 0) {
+                data.messages.forEach(msg => {
+                    addChatMessage('assistant', msg.payload, new Date(msg.timestamp));
+                    chatStats.received++;
+                });
+                updateChatStats();
+            }
+        } catch (error) {
+            console.error('轮询消息失败:', error);
+        }
+    }, 1000); // 每秒轮询一次
+}
+
+// 停止轮询
+function stopMqttPolling() {
+    if (mqttPollingInterval) {
+        clearInterval(mqttPollingInterval);
+        mqttPollingInterval = null;
+    }
+}
+
+// 发送对话消息
+async function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const sendButton = document.getElementById('chatSendButton');
+    const message = input.value.trim();
+    
+    if (!message) {
+        alert('请输入消息内容');
+        return;
+    }
+    
+    if (!mqttConnected) {
+        alert('请先连接 MQTT Broker');
+        return;
+    }
+    
+    const publishTopic = document.getElementById('chatPublishTopic').value;
+    
+    sendButton.disabled = true;
+    sendButton.textContent = '⏳ 发送中...';
+    
+    try {
+        // 构造 Envelope 消息
+        const envelope = {
+            type: 'user',
+            content: message,
+            meta: {
+                schema_version: 'v0',
+                timestamp: new Date().toISOString()
+            }
+        };
+        
+        const response = await fetch('/api/mqtt/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                topic: publishTopic,
+                payload: JSON.stringify(envelope)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // 添加到对话历史
+            addChatMessage('user', message, new Date());
+            chatStats.sent++;
+            updateChatStats();
+            
+            // 清空输入框
+            input.value = '';
+            updateChatCharCount();
+        } else {
+            throw new Error(data.error || '发送失败');
+        }
+    } catch (error) {
+        addChatSystemMessage(`❌ 发送失败: ${error.message}`);
+    } finally {
+        sendButton.disabled = false;
+        sendButton.textContent = '🚀 发送';
+    }
+}
+
+// 添加对话消息到界面
+function addChatMessage(role, content, timestamp) {
+    const messagesDiv = document.getElementById('chatMessages');
+    
+    // 移除欢迎消息
+    const welcome = messagesDiv.querySelector('.chat-welcome');
+    if (welcome) welcome.remove();
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message chat-message-${role}`;
+    
+    const time = timestamp.toLocaleTimeString('zh-CN');
+    const roleLabel = role === 'user' ? '👤 用户' : '🤖 助手';
+    
+    messageDiv.innerHTML = `
+        <div class="message-header">
+            <span class="message-role">${roleLabel}</span>
+            <span class="message-time">${time}</span>
+        </div>
+        <div class="message-content">${escapeHtml(content)}</div>
+    `;
+    
+    messagesDiv.appendChild(messageDiv);
+    
+    // 滚动到底部
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    
+    // 保存到历史
+    chatHistory.push({ role, content, timestamp: timestamp.toISOString() });
+}
+
+// 添加系统消息
+function addChatSystemMessage(message) {
+    const messagesDiv = document.getElementById('chatMessages');
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message chat-message-system';
+    messageDiv.innerHTML = `
+        <div class="message-content">${escapeHtml(message)}</div>
+    `;
+    
+    messagesDiv.appendChild(messageDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// 渲染对话消息
+function renderChatMessages() {
+    const messagesDiv = document.getElementById('chatMessages');
+    messagesDiv.innerHTML = '';
+    
+    if (chatHistory.length === 0) {
+        messagesDiv.innerHTML = `
+            <div class="chat-welcome">
+                <p>👋 欢迎使用 CozyMind 对话功能</p>
+                <p>输入消息后，将通过 MQTT 发送到 AI-Core 服务处理</p>
+            </div>
+        `;
+    } else {
+        chatHistory.forEach(msg => {
+            addChatMessage(msg.role, msg.content, new Date(msg.timestamp));
+        });
+    }
+}
+
+// 清空对话历史
+function clearChatHistory() {
+    if (confirm('确定要清空所有对话记录吗？')) {
+        chatHistory = [];
+        renderChatMessages();
+        chatStats = { sent: 0, received: 0 };
+        updateChatStats();
+        addChatSystemMessage('🗑️ 对话历史已清空');
+    }
+}
+
+// 更新统计信息
+function updateChatStats() {
+    document.getElementById('statSentCount').textContent = chatStats.sent;
+    document.getElementById('statReceivedCount').textContent = chatStats.received;
+}
+
+// HTML 转义
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }

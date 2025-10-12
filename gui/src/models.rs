@@ -127,3 +127,26 @@ pub struct OllamaTestResponse {
     pub error: Option<String>,
 }
 
+/// MQTT 连接请求
+#[derive(Debug, Deserialize)]
+pub struct MqttConnectRequest {
+    pub host: String,
+    pub port: u16,
+    pub subscribe_topic: String,
+}
+
+/// MQTT 发布请求
+#[derive(Debug, Deserialize)]
+pub struct MqttPublishRequest {
+    pub topic: String,
+    pub payload: String,
+}
+
+/// MQTT 消息
+#[derive(Debug, Clone, Serialize)]
+pub struct MqttMessage {
+    pub topic: String,
+    pub payload: String,
+    pub timestamp: String,
+}
+
