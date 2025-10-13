@@ -28,8 +28,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function switchSection(section) {
     currentSection = section;
-
-    console.log('切换到', section);
     
     // 切换导航按钮状态
     document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -52,17 +50,11 @@ function switchSection(section) {
         logCard.style.display = 'block';
         // 首次加载时加载数据，之后只显示缓存数据
         if (!aiCoresLoaded) {
-            console.log('切换到服务管理：首次加载，调用loadAICores()');
             loadAICores();
-        } else {
-            console.log('切换到服务管理：已加载，不调用API');
         }
         
         if (!ollamaConfigsLoaded) {
-            console.log('切换到服务管理：首次加载，调用loadOllamaConfigs()');
             loadOllamaConfigs();
-        } else {
-            console.log('切换到服务管理：已加载Ollama，不调用API');
         }
     } else if (section === 'messages') {
         document.getElementById('messagesSection').classList.add('active');
@@ -70,25 +62,18 @@ function switchSection(section) {
         // 每次切换到消息预设页面都重新加载最新数据
         loadMessages();
     } else if (section === 'model-setup') {
-        console.log('Switching to model-setup section');
         const modelSetupSection = document.getElementById('modelSetupSection');
         if (modelSetupSection) {
             modelSetupSection.classList.add('active');
-            console.log('Model setup section activated');
-            console.log('Model setup section classes:', modelSetupSection.className);
-            console.log('Model setup section display:', window.getComputedStyle(modelSetupSection).display);
         } else {
             console.error('Model setup section not found');
         }
         logCard.style.display = 'none';
-        console.log('调用 initModelSetup()，aiCores缓存状态:', aiCoresLoaded, '服务数量:', aiCores.length);
         initModelSetup();
     } else if (section === 'chat') {
-        console.log('Switching to chat section');
         const chatSection = document.getElementById('chatSection');
         if (chatSection) {
             chatSection.classList.add('active');
-            console.log('Chat section activated');
         } else {
             console.error('Chat section not found');
         }
@@ -102,32 +87,21 @@ function switchSection(section) {
 // 同步更新模型设定页面的下拉框
 // autoSelect: 是否尝试自动选择第一个健康服务
 function updateModelSetupSelect(autoSelect = false) {
-    console.log('🔄 updateModelSetupSelect() 被调用，autoSelect:', autoSelect);
     const select = document.getElementById('modelAiCoreSelect');
-    if (!select) {
-        console.log('❌ modelAiCoreSelect 元素未找到');
-        return;
-    }
-    
-    console.log('📊 当前状态 - aiCores.length:', aiCores.length, 'isFirstModelSetupUpdate:', isFirstModelSetupUpdate);
+    if (!select) return;
     
     select.innerHTML = '<option value="">-- 请选择 AI-Core 服务 --</option>';
     
-    if (aiCores.length === 0) {
-        console.log('⚠️ aiCores 数组为空，跳过更新');
-        return;
-    }
+    if (aiCores.length === 0) return;
     
     let firstHealthyService = null;
     
     aiCores.forEach((core) => {
         const checkResult = lastCheckResults.get(core.id);
         const isHealthy = checkResult && checkResult.status === 'online';
-        console.log(`🔍 服务 ${core.name} (ID:${core.id}) - 健康状态:`, isHealthy, '检查结果:', checkResult);
         
         if (isHealthy && !firstHealthyService) {
             firstHealthyService = core;
-            console.log('✅ 找到第一个健康服务:', core.name);
         }
         
         const option = document.createElement('option');
@@ -141,19 +115,13 @@ function updateModelSetupSelect(autoSelect = false) {
         select.appendChild(option);
     });
     
-    console.log('🎯 自动选择判断 - autoSelect:', autoSelect, 'firstHealthyService:', firstHealthyService?.name, 'isFirstModelSetupUpdate:', isFirstModelSetupUpdate);
-    
     // 只有在状态更新时且首次更新时才自动选择第一个健康的服务
     if (autoSelect && firstHealthyService && isFirstModelSetupUpdate) {
-        console.log('🚀 自动选择第一个健康服务:', firstHealthyService.name);
         select.value = firstHealthyService.id;
         // 触发change事件，确保状态同步
         select.dispatchEvent(new Event('change'));
         // 首次更新完成后，设置标志为false
         isFirstModelSetupUpdate = false;
-        console.log('✅ 设置 isFirstModelSetupUpdate = false');
-    } else {
-        console.log('⏭️ 跳过自动选择 - 原因:', !autoSelect ? 'autoSelect=false' : !firstHealthyService ? '没有健康服务' : '不是首次更新');
     }
 }
 
@@ -183,22 +151,15 @@ async function reloadAICores() {
 
 // 加载所有 AI-Core 配置
 async function loadAICores() {
-    console.log('📥 loadAICores() 被调用');
     try {
-        console.log('🌐 请求 /api/ai-cores');
         const response = await fetch('/api/ai-cores');
         const result = await response.json();
         
         if (result.success) {
             aiCores = result.data;
-            aiCoresLoaded = true; // 标记已加载
-            console.log('✅ 设置 aiCoresLoaded = true');
-            console.log('🔄 调用 renderServices()');
+            aiCoresLoaded = true;
             renderServices();
-            console.log('🔍 调用 checkAllConnections()');
             checkAllConnections();
-            // 不再自动启动定时器，只有用户手动检测
-            // startAutoCheck();
             addLog(`✅ 加载了 ${aiCores.length} 个 AI-Core 服务配置`);
         }
     } catch (error) {
@@ -257,15 +218,12 @@ function renderServices() {
     `).join('');
     
     // 同步更新模型设定页面的下拉框（初始化，不自动选择）
-    console.log('🔄 renderServices() 调用 updateModelSetupSelect(false) - 初始化，不自动选择');
     updateModelSetupSelect(false);
 }
 
 // 检测所有连接
 async function checkAllConnections() {
     if (aiCores.length === 0) return;
-    
-    console.log('🔍 checkAllConnections() 开始检测');
     
     try {
         const response = await fetch('/api/check-all');
@@ -274,7 +232,6 @@ async function checkAllConnections() {
         if (result.success) {
             result.data.forEach(core => {
                 updateServiceStatus(core);
-                // 存储检测结果
                 lastCheckResults.set(core.id, core);
             });
             
@@ -282,7 +239,6 @@ async function checkAllConnections() {
             aiCores.forEach(originalCore => {
                 const updatedCore = result.data.find(c => c.id === originalCore.id);
                 if (updatedCore) {
-                    // 更新aiCores中的状态信息
                     Object.assign(originalCore, {
                         status: updatedCore.status,
                         response_time: updatedCore.response_time || updatedCore.responseTime,
@@ -296,12 +252,11 @@ async function checkAllConnections() {
             const healthyServices = result.data.filter(core => core.status === 'online');
             if (healthyServices.length > 0 && !selectedCore && isFirstLoad) {
                 const firstHealthy = healthyServices[0];
-                selectConnection(firstHealthy.id, true); // 传递true表示是自动选择
+                selectConnection(firstHealthy.id, true);
                 addLog(`✅ 自动选择第一个健康服务: ${firstHealthy.name}`, 'success');
             }
             
             // 状态更新完成后，同步更新模型设定页面的下拉框（允许自动选择）
-            console.log('🔄 checkAllConnections() 调用 updateModelSetupSelect(true) - 状态更新，允许自动选择');
             updateModelSetupSelect(true);
             
             addLog(`✅ 完成所有服务检测`, 'success');
@@ -1501,90 +1456,35 @@ function formatDateTime(dateStr) {
 
 // 初始化模型设定页面
 async function initModelSetup() {
-    console.log('Initializing model setup...');
-    
-    // 检查关键元素是否存在
     const modelSetupSection = document.getElementById('modelSetupSection');
     const modelSetupCard = document.querySelector('.model-setup-card');
-    const select = document.getElementById('modelAiCoreSelect');
-    const textarea = document.getElementById('systemPromptInput');
     
-    console.log('Model setup section:', modelSetupSection);
-    console.log('Model setup card:', modelSetupCard);
-    console.log('AI Core select:', select);
-    console.log('System prompt textarea:', textarea);
-    
-    // 检查父元素
-    const mainElement = document.querySelector('main');
-    console.log('Main element:', mainElement);
-    if (mainElement) {
-        console.log('Main element padding:', window.getComputedStyle(mainElement).padding);
-        console.log('Main element display:', window.getComputedStyle(mainElement).display);
-    }
-    
-    if (!modelSetupSection) {
-        console.error('Model setup section not found!');
+    if (!modelSetupSection || !modelSetupCard) {
+        console.error('Model setup elements not found!');
         return;
     }
     
-    if (!modelSetupCard) {
-        console.error('Model setup card not found!');
-        return;
-    }
-    
-    console.log('Model setup card found and ready');
-    
-    // 使用同步更新的下拉框，无需重新加载
-    console.log('模型设定：使用已同步的下拉框数据');
     // 加载消息预设
     await loadMessages();
     // 更新字符计数
     updateCharCount();
-    console.log('Model setup initialized, messagePresets loaded:', messagePresets.length);
-    
-    // 测试按钮点击事件
-    const testButton = document.querySelector('button[onclick="showMessageSelector()"]');
-    if (testButton) {
-        console.log('Message selector button found:', testButton);
-        // 添加额外的点击事件监听器
-        testButton.addEventListener('click', function(e) {
-            console.log('Button clicked via event listener');
-            e.preventDefault();
-            showMessageSelector();
-        });
-    } else {
-        console.error('Message selector button not found!');
-    }
 }
 
 // 检查 AI-Core 服务可用性
 async function checkAiCoreAvailability() {
-    console.log('🔍 checkAiCoreAvailability() 被调用');
     const select = document.getElementById('modelAiCoreSelect');
-    const statusDiv = document.getElementById('aiCoreStatus');
     const sendButton = document.getElementById('sendButton');
     
     if (!select.value) {
-        console.log('⚠️ 没有选择服务，清空状态显示');
-        statusDiv.innerHTML = '';
         sendButton.disabled = false;
         return;
     }
     
     const option = select.options[select.selectedIndex];
     const isHealthy = option.dataset.healthy === 'true';
-    console.log(`📊 选中服务: ${option.textContent}, 健康状态:`, isHealthy);
     
-    // 显示状态
-    if (isHealthy) {
-        statusDiv.innerHTML = '<span class="status-online">🟢 服务健康</span>';
-        sendButton.disabled = false;
-        console.log('✅ 服务健康，启用发送按钮');
-    } else {
-        statusDiv.innerHTML = '<span class="status-offline">🔴 服务离线</span>';
-        sendButton.disabled = true;
-        console.log('❌ 服务离线，禁用发送按钮');
-    }
+    // 根据健康状态控制发送按钮
+    sendButton.disabled = !isHealthy;
 }
 
 // 显示消息选择器
@@ -1774,7 +1674,6 @@ function resetModelSetupForm() {
     document.getElementById('modelAiCoreSelect').value = '';
     document.getElementById('systemPromptInput').value = '';
     document.getElementById('sessionIdInput').value = '';
-    document.getElementById('aiCoreStatus').innerHTML = '';
     document.getElementById('modelSetupResult').style.display = 'none';
     updateCharCount();
 }
@@ -1787,7 +1686,6 @@ let mqttConnected = false;
 
 // 初始化对话页面
 function initChat() {
-    console.log('Initializing chat...');
     renderChatMessages();
     updateChatStats();
     updateChatCharCount();
@@ -1797,7 +1695,6 @@ function initChat() {
     if (chatInput) {
         chatInput.addEventListener('input', updateChatCharCount);
     }
-    console.log('Chat initialized');
 }
 
 // 更新对话字符计数

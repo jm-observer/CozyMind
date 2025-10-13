@@ -50,6 +50,9 @@
                 <div class="services-card">
                     <div class="services-header">
                         <h2>AI-Core 服务列表</h2>
+                        <button class="btn btn-sm btn-secondary" onclick="reloadAICores()">
+                            🔄 重新加载
+                        </button>
                     </div>
                     
                     <div class="services-grid" id="servicesGrid">
@@ -62,6 +65,9 @@
                 <div class="services-card">
                     <div class="services-header">
                         <h2>Ollama 配置列表</h2>
+                        <button class="btn btn-sm btn-secondary" onclick="reloadOllamaConfigs()">
+                            🔄 重新加载
+                        </button>
                     </div>
                     
                     <div class="services-grid" id="ollamaGrid">
@@ -151,7 +157,6 @@
                             <select id="modelAiCoreSelect" onchange="checkAiCoreAvailability()">
                                 <option value="">-- 请选择 AI-Core 服务 --</option>
                             </select>
-                            <div id="aiCoreStatus" class="service-status"></div>
                         </div>
                     </div>
 
