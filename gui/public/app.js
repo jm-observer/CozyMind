@@ -365,10 +365,12 @@ async function selectConnection(coreId, isAutoSelect = false) {
     
     // 更新选中信息显示
     const selectedInfo = document.getElementById('selectedInfo');
-    selectedInfo.innerHTML = `
-        <span class="selected-name">${core.name}</span>
-        <span class="selected-url">${core.url}</span>
-    `;
+    if (selectedInfo) {
+        selectedInfo.innerHTML = `
+            <span class="selected-name">${core.name}</span>
+            <span class="selected-url">${core.url}</span>
+        `;
+    }
     
     // 如果是自动选择且已有检测结果，直接使用缓存的结果
     if (isAutoSelect && lastCheckResults.has(coreId)) {
@@ -559,7 +561,10 @@ async function deleteCore(coreId) {
                 if (detailCard) {
                     detailCard.style.display = 'none';
                 }
-                document.getElementById('selectedInfo').innerHTML = '<span class="selected-name">未选择</span>';
+                const selectedInfo = document.getElementById('selectedInfo');
+                if (selectedInfo) {
+                    selectedInfo.innerHTML = '<span class="selected-name">未选择</span>';
+                }
             }
             aiCoresLoaded = false; // 标记需要重新加载
             await loadAICores();
@@ -1454,13 +1459,15 @@ function formatDateTime(dateStr) {
 
 // ========== 模型设定功能 ==========
 
+let modelSetupHistory = [];
+let modelSetupStats = { sent: 0, success: 0, fail: 0 };
+
 // 初始化模型设定页面
 async function initModelSetup() {
     const modelSetupSection = document.getElementById('modelSetupSection');
-    const modelSetupCard = document.querySelector('.model-setup-card');
     
-    if (!modelSetupSection || !modelSetupCard) {
-        console.error('Model setup elements not found!');
+    if (!modelSetupSection) {
+        console.error('Model setup section not found!');
         return;
     }
     
@@ -1468,6 +1475,10 @@ async function initModelSetup() {
     await loadMessages();
     // 更新字符计数
     updateCharCount();
+    // 渲染消息历史
+    renderModelSetupMessages();
+    // 更新统计信息
+    updateModelSetupStats();
 }
 
 // 检查 AI-Core 服务可用性
@@ -1564,8 +1575,6 @@ async function sendSystemPrompt() {
     const select = document.getElementById('modelAiCoreSelect');
     const promptInput = document.getElementById('systemPromptInput');
     const sessionIdInput = document.getElementById('sessionIdInput');
-    const resultDiv = document.getElementById('modelSetupResult');
-    const resultContent = document.getElementById('resultContent');
     const sendButton = document.getElementById('sendButton');
     
     // 验证输入
@@ -1574,7 +1583,8 @@ async function sendSystemPrompt() {
         return;
     }
     
-    if (!promptInput.value.trim()) {
+    const message = promptInput.value.trim();
+    if (!message) {
         alert('请输入系统参数');
         return;
     }
@@ -1586,25 +1596,31 @@ async function sendSystemPrompt() {
         return;
     }
     
-    const url = `${option.dataset.url}/api/system-prompt`;
+    // 立即显示发送的消息
+    addModelSetupMessage('system', message, new Date());
+    modelSetupStats.sent++;
+    updateModelSetupStats();
+    
+    // 清空输入框
+    promptInput.value = '';
+    updateCharCount();
     
     // 准备请求数据
     const requestData = {
-        system_prompt: promptInput.value.trim()
+        ai_core_id: parseInt(select.value),
+        system_prompt: message
     };
     
     if (sessionIdInput.value.trim()) {
         requestData.session_id = sessionIdInput.value.trim();
     }
     
-    // 显示加载状态
+    // 禁用按钮
     sendButton.disabled = true;
     sendButton.textContent = '⏳ 发送中...';
-    resultDiv.style.display = 'block';
-    resultContent.innerHTML = '<div class="loading">正在发送请求...</div>';
     
     try {
-        const response = await fetch(url, {
+        const response = await fetch('/api/system-prompt', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1615,58 +1631,155 @@ async function sendSystemPrompt() {
         const data = await response.json();
         
         if (response.ok && data.status === 'success') {
-            // 成功
-            resultContent.innerHTML = `
-                <div class="result-success">
-                    <h4>✅ 发送成功</h4>
-                    <div class="result-item">
-                        <strong>状态:</strong> ${data.status}
-                    </div>
-                    <div class="result-item">
-                        <strong>消息:</strong> ${data.message || '无'}
-                    </div>
-                    <div class="result-item">
-                        <strong>会话 ID:</strong> 
-                        <code>${data.session_id || '未返回'}</code>
-                    </div>
-                    <div class="result-item">
-                        <strong>系统参数:</strong>
-                        <pre>${promptInput.value}</pre>
-                    </div>
-                </div>
-            `;
+            // 添加成功响应
+            const responseText = `✅ 发送成功\n状态: ${data.status}\n消息: ${data.message || '无'}\n会话 ID: ${data.session_id || '未返回'}`;
+            addModelSetupMessage('response', responseText, new Date(), true);
+            
+            modelSetupStats.success++;
             
             // 如果返回了 session_id，更新输入框
             if (data.session_id && !sessionIdInput.value) {
                 sessionIdInput.value = data.session_id;
             }
         } else {
-            // 失败
-            resultContent.innerHTML = `
-                <div class="result-error">
-                    <h4>❌ 发送失败</h4>
-                    <div class="result-item">
-                        <strong>错误:</strong> ${data.error || data.message || '未知错误'}
-                    </div>
-                </div>
-            `;
+            // 添加失败响应
+            const errorText = `❌ 发送失败\n错误: ${data.error || data.message || '未知错误'}`;
+            addModelSetupMessage('response', errorText, new Date(), false);
+            
+            modelSetupStats.fail++;
         }
+        
+        updateModelSetupStats();
     } catch (error) {
-        resultContent.innerHTML = `
-            <div class="result-error">
-                <h4>❌ 请求失败</h4>
-                <div class="result-item">
-                    <strong>错误:</strong> ${error.message}
-                </div>
-                <div class="result-item">
-                    <strong>建议:</strong> 请检查网络连接和服务状态
-                </div>
-            </div>
-        `;
+        // 添加错误响应
+        const errorText = `❌ 请求失败\n错误: ${error.message}\n建议: 请检查网络连接和服务状态`;
+        addModelSetupMessage('response', errorText, new Date(), false);
+        
+        modelSetupStats.fail++;
+        updateModelSetupStats();
     } finally {
         sendButton.disabled = false;
         sendButton.textContent = '🚀 发送系统参数';
     }
+}
+
+// 添加模型设定消息到界面
+function addModelSetupMessage(role, content, timestamp, isSuccess = null) {
+    const messagesDiv = document.getElementById('modelSetupMessages');
+    
+    // 移除欢迎消息
+    const welcome = messagesDiv.querySelector('.chat-welcome');
+    if (welcome) welcome.remove();
+    
+    const messageDiv = document.createElement('div');
+    
+    if (role === 'system') {
+        messageDiv.className = 'chat-message chat-message-user';
+        const time = timestamp.toLocaleTimeString('zh-CN');
+        messageDiv.innerHTML = `
+            <div class="message-header">
+                <span class="message-role">⚙️ 系统参数</span>
+                <span class="message-time">${time}</span>
+            </div>
+            <div class="message-content">${escapeHtml(content)}</div>
+        `;
+    } else if (role === 'response') {
+        messageDiv.className = 'chat-message chat-message-assistant';
+        const time = timestamp.toLocaleTimeString('zh-CN');
+        const roleLabel = isSuccess ? '✅ 响应' : '❌ 错误';
+        messageDiv.innerHTML = `
+            <div class="message-header">
+                <span class="message-role">${roleLabel}</span>
+                <span class="message-time">${time}</span>
+            </div>
+            <div class="message-content">${escapeHtml(content)}</div>
+        `;
+    }
+    
+    messagesDiv.appendChild(messageDiv);
+    
+    // 滚动到底部
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    
+    // 保存到历史（仅在不是从历史渲染时保存）
+    if (!timestamp.fromHistory) {
+        modelSetupHistory.push({ role, content, timestamp: timestamp.toISOString(), isSuccess });
+    }
+}
+
+// 显示模型设定消息（仅显示，不保存）
+function displayModelSetupMessage(role, content, timestamp, isSuccess = null) {
+    const messagesDiv = document.getElementById('modelSetupMessages');
+    
+    // 移除欢迎消息
+    const welcome = messagesDiv.querySelector('.chat-welcome');
+    if (welcome) welcome.remove();
+    
+    const messageDiv = document.createElement('div');
+    
+    if (role === 'system') {
+        messageDiv.className = 'chat-message chat-message-user';
+        const time = timestamp.toLocaleTimeString('zh-CN');
+        messageDiv.innerHTML = `
+            <div class="message-header">
+                <span class="message-role">⚙️ 系统参数</span>
+                <span class="message-time">${time}</span>
+            </div>
+            <div class="message-content">${escapeHtml(content)}</div>
+        `;
+    } else if (role === 'response') {
+        messageDiv.className = 'chat-message chat-message-assistant';
+        const time = timestamp.toLocaleTimeString('zh-CN');
+        const roleLabel = isSuccess ? '✅ 响应' : '❌ 错误';
+        messageDiv.innerHTML = `
+            <div class="message-header">
+                <span class="message-role">${roleLabel}</span>
+                <span class="message-time">${time}</span>
+            </div>
+            <div class="message-content">${escapeHtml(content)}</div>
+        `;
+    }
+    
+    messagesDiv.appendChild(messageDiv);
+    
+    // 滚动到底部
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// 渲染模型设定消息
+function renderModelSetupMessages() {
+    const messagesDiv = document.getElementById('modelSetupMessages');
+    messagesDiv.innerHTML = '';
+    
+    if (modelSetupHistory.length === 0) {
+        messagesDiv.innerHTML = `
+            <div class="chat-welcome">
+                <p>⚙️ 欢迎使用模型系统参数设定</p>
+                <p>配置 AI 模型的系统提示词，定义模型的行为和角色</p>
+            </div>
+        `;
+    } else {
+        modelSetupHistory.forEach(msg => {
+            displayModelSetupMessage(msg.role, msg.content, new Date(msg.timestamp), msg.isSuccess);
+        });
+    }
+}
+
+// 清空模型设定历史
+function clearModelSetupHistory() {
+    if (confirm('确定要清空所有历史记录吗？')) {
+        modelSetupHistory = [];
+        renderModelSetupMessages();
+        modelSetupStats = { sent: 0, success: 0, fail: 0 };
+        updateModelSetupStats();
+    }
+}
+
+// 更新模型设定统计信息
+function updateModelSetupStats() {
+    document.getElementById('modelSetupSentCount').textContent = modelSetupStats.sent;
+    document.getElementById('modelSetupSuccessCount').textContent = modelSetupStats.success;
+    document.getElementById('modelSetupFailCount').textContent = modelSetupStats.fail;
 }
 
 // 重置表单
@@ -1674,7 +1787,6 @@ function resetModelSetupForm() {
     document.getElementById('modelAiCoreSelect').value = '';
     document.getElementById('systemPromptInput').value = '';
     document.getElementById('sessionIdInput').value = '';
-    document.getElementById('modelSetupResult').style.display = 'none';
     updateCharCount();
 }
 
@@ -1747,8 +1859,8 @@ async function connectMqtt() {
             disconnectBtn.style.display = 'block';
             addChatSystemMessage(`✅ MQTT 连接成功 (${host}:${port})`);
             
-            // 开始轮询消息
-            startMqttPolling();
+            // 启动 SSE 接收消息
+            startMqttSSE();
         } else {
             throw new Error(data.error || '连接失败');
         }
@@ -1767,6 +1879,8 @@ async function disconnectMqtt() {
     const connectBtn = document.getElementById('mqttConnectButton');
     const disconnectBtn = document.getElementById('mqttDisconnectButton');
     
+    console.log('🔌 请求断开 MQTT 连接...');
+    
     try {
         const response = await fetch('/api/mqtt/disconnect', {
             method: 'POST'
@@ -1774,48 +1888,101 @@ async function disconnectMqtt() {
         
         const data = await response.json();
         
-        if (response.ok && data.success) {
+        // 成功断开 或 本来就未连接（都视为成功）
+        const isSuccess = data.success || data.error === 'MQTT 未连接';
+        
+        if (isSuccess) {
             mqttConnected = false;
             statusDiv.innerHTML = '<span class="status-disconnected">⚫ 未连接</span>';
             connectBtn.style.display = 'block';
             disconnectBtn.style.display = 'none';
-            addChatSystemMessage('🔌 MQTT 已断开');
-            stopMqttPolling();
+            
+            if (data.success) {
+                console.log('✅ MQTT 断开成功');
+                addChatSystemMessage('🔌 MQTT 已断开');
+            } else {
+                console.log('ℹ️ MQTT 本来就未连接');
+                addChatSystemMessage('ℹ️ MQTT 已处于未连接状态');
+            }
+            
+            stopMqttSSE();
+        } else {
+            console.error('❌ 断开失败:', data.error);
+            addChatSystemMessage(`❌ 断开失败: ${data.error}`);
         }
     } catch (error) {
+        console.error('❌ 请求失败:', error);
         addChatSystemMessage(`❌ 断开失败: ${error.message}`);
     }
 }
 
-let mqttPollingInterval = null;
+let mqttEventSource = null;
 
-// 开始轮询 MQTT 消息
-function startMqttPolling() {
-    if (mqttPollingInterval) return;
+// 启动 SSE 连接接收 MQTT 消息
+function startMqttSSE() {
+    if (mqttEventSource) {
+        console.warn('⚠️ SSE 连接已存在，跳过重复连接');
+        return;
+    }
     
-    mqttPollingInterval = setInterval(async () => {
-        try {
-            const response = await fetch('/api/mqtt/messages');
-            const data = await response.json();
-            
-            if (data.success && data.messages && data.messages.length > 0) {
-                data.messages.forEach(msg => {
-                    addChatMessage('assistant', msg.payload, new Date(msg.timestamp));
-                    chatStats.received++;
-                });
-                updateChatStats();
-            }
-        } catch (error) {
-            console.error('轮询消息失败:', error);
+    console.log('🔌 正在建立 SSE 连接到 /api/mqtt/sse...');
+    
+    // 使用 EventSource 建立 SSE 连接
+    mqttEventSource = new EventSource('/api/mqtt/sse');
+    
+    mqttEventSource.onopen = () => {
+        console.log('✅ SSE 连接已建立，状态:', mqttEventSource.readyState);
+        addChatSystemMessage('📡 实时消息通道已启动');
+    };
+    
+    mqttEventSource.onmessage = (event) => {
+        // 心跳消息忽略
+        if (event.data.trim() === '') {
+            return;
         }
-    }, 1000); // 每秒轮询一次
+        
+        try {
+            const msg = JSON.parse(event.data);
+            console.log('📨 收到 SSE 消息:', {
+                topic: msg.topic,
+                payload_length: msg.payload.length,
+                timestamp: msg.timestamp
+            });
+            
+            addChatMessage('assistant', msg.payload, new Date(msg.timestamp));
+            chatStats.received++;
+            updateChatStats();
+        } catch (error) {
+            console.error('❌ 解析 SSE 消息失败:', error, 'data:', event.data);
+        }
+    };
+    
+    mqttEventSource.onerror = (error) => {
+        const state = mqttEventSource ? mqttEventSource.readyState : 'null';
+        console.error('❌ SSE 连接错误, readyState:', state, error);
+        
+        // EventSource 会自动重连，只在完全关闭时清理
+        if (mqttEventSource && mqttEventSource.readyState === EventSource.CLOSED) {
+            console.warn('🔌 SSE 连接已完全关闭');
+            mqttEventSource = null;
+            addChatSystemMessage('❌ 实时消息通道已断开');
+        } else if (mqttEventSource && mqttEventSource.readyState === EventSource.CONNECTING) {
+            console.log('🔄 SSE 正在重新连接...');
+        }
+    };
+    
+    console.log('📡 SSE EventSource 已创建');
 }
 
-// 停止轮询
-function stopMqttPolling() {
-    if (mqttPollingInterval) {
-        clearInterval(mqttPollingInterval);
-        mqttPollingInterval = null;
+// 停止 SSE 连接
+function stopMqttSSE() {
+    if (mqttEventSource) {
+        console.log('🔌 正在关闭 SSE 连接...');
+        mqttEventSource.close();
+        mqttEventSource = null;
+        console.log('✅ SSE 连接已关闭');
+    } else {
+        console.log('⚠️ SSE 连接不存在，无需关闭');
     }
 }
 
@@ -1968,4 +2135,73 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// 显示消息选择器（用于对话输入）
+function showChatMessageSelector() {
+    console.log('showChatMessageSelector called, messagePresets length:', messagePresets.length);
+    
+    const modal = document.getElementById('messageSelectorModal');
+    const listDiv = document.getElementById('messageSelectorList');
+    
+    console.log('Modal element:', modal);
+    console.log('List div element:', listDiv);
+    
+    if (!modal) {
+        console.error('Message selector modal not found!');
+        return;
+    }
+    
+    if (!listDiv) {
+        console.error('Message selector list div not found!');
+        return;
+    }
+    
+    // 如果消息预设未加载，先加载
+    if (messagePresets.length === 0) {
+        loadMessages().then(() => {
+            populateChatMessageSelector(listDiv);
+        });
+    } else {
+        populateChatMessageSelector(listDiv);
+    }
+    
+    modal.style.display = 'flex';
+    console.log('Modal displayed');
+}
+
+// 填充对话消息选择器列表
+function populateChatMessageSelector(listDiv) {
+    listDiv.innerHTML = '';
+    
+    if (messagePresets.length === 0) {
+        console.log('No message presets available');
+        listDiv.innerHTML = '<p class="empty-message">暂无消息预设，请先在"消息预设"页面创建</p>';
+    } else {
+        console.log('Loading message presets:', messagePresets);
+        messagePresets.forEach(msg => {
+            const item = document.createElement('div');
+            item.className = 'message-selector-item';
+            item.innerHTML = `
+                <div class="message-title">${msg.title}</div>
+                <div class="message-preview">${truncate(msg.content, 100)}</div>
+                <div class="message-type-badge">${getMessageTypeLabel(msg.type)}</div>
+            `;
+            item.onclick = () => selectMessageForChat(msg);
+            listDiv.appendChild(item);
+        });
+    }
+}
+
+// 选择消息填充到对话输入框
+function selectMessageForChat(message) {
+    document.getElementById('chatInput').value = message.content;
+    updateChatCharCount();
+    closeMessageSelector();
+}
+
+// 清空对话输入框
+function clearChatInput() {
+    document.getElementById('chatInput').value = '';
+    updateChatCharCount();
 }

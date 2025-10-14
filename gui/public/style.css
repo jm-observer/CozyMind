@@ -1,6 +1,6 @@
 :root {
-    --header-height: 200px; /* 固定头部的高度，只包含logo、标题和导航 */
-    --content-offset: 60px; /* 内容区域的顶部偏移，避免被固定头部遮挡 */
+    --header-height: 140px; /* 固定头部的高度，只包含logo、标题和导航 */
+    --content-offset: 40px; /* 内容区域的顶部偏移，避免被固定头部遮挡 */
 }
 
 * {
@@ -22,12 +22,6 @@ body {
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
-}
-
-/* 固定头部内的容器样式 */
-.fixed-header .container {
-    padding: 20px;
 }
 
 /* 固定头部区域 */
@@ -44,36 +38,34 @@ body {
 header {
     text-align: center;
     color: white;
-    margin-bottom: 20px;
-    padding: 20px;
+    padding: 15px;
 }
 
 header h1 {
-    font-size: 2.5rem;
-    margin-bottom: 10px;
+    font-size: 2rem;
+    margin-bottom: 8px;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
 }
 
 .subtitle {
-    font-size: 1.1rem;
+    font-size: 1rem;
     opacity: 0.9;
 }
 
 /* 主导航 */
 .main-nav {
     display: flex;
-    gap: 15px;
+    gap: 12px;
     justify-content: center;
-    margin-bottom: 20px;
-    padding: 0 20px 20px 20px;
+    padding: 10px 20px 10px 20px;
 }
 
 .nav-btn {
-    padding: 12px 30px;
+    padding: 8px 20px;
     background: rgba(255, 255, 255, 0.85);
     border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 25px;
-    font-size: 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
     font-weight: 600;
     color: #667eea;
     cursor: pointer;
@@ -83,7 +75,7 @@ header h1 {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .nav-btn:hover {
@@ -121,8 +113,6 @@ header h1 {
 /* 部分切换 */
 .section {
     display: none;
-    padding: 20px;
-    margin: 20px 0;
 }
 
 .section.active {
@@ -132,10 +122,10 @@ header h1 {
 /* 主内容区域 - 可滚动容器 */
 main {
     position: fixed;
-    top: calc(var(--header-height) + var(--content-offset));
+    top: calc(var(--header-height) + 10px); /* 头部高度 + 额外间距 */
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: 0; /* 占满整个屏幕底部 */
     background: white;
     border-radius: 16px 16px 0 0;
     padding: 30px;
@@ -151,7 +141,6 @@ main {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 12px;
     padding: 20px;
-    margin-bottom: 20px;
     color: white;
     max-width: 100%;
     box-sizing: border-box;
@@ -606,69 +595,21 @@ main {
 
 /* 页脚 */
 footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     text-align: center;
     color: #666;
-    margin: 30px 0 20px 0;
-    padding: 20px;
+    padding: 15px;
     opacity: 0.9;
     background: #f8f9fa;
-    border-radius: 8px;
+    border-top: 1px solid #e9ecef;
+    z-index: 999;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-    .fixed-header .container {
-        padding: 10px;
-    }
-
-    header h1 {
-        font-size: 2rem;
-    }
-
-    main {
-        padding: 20px;
-        margin: 0 10px 0 10px; /* 移动端左右边距 */
-        max-width: none; /* 移动端取消最大宽度限制 */
-        left: 10px;
-        right: 10px;
-        top: calc(var(--header-height) + 40px); /* 移动端减少顶部偏移 */
-    }
-
-    .services-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .selected-header {
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    .selected-info {
-        align-items: flex-start;
-    }
-
-    .services-header {
-        flex-direction: column;
-        gap: 15px;
-        align-items: flex-start;
-    }
-
-    .controls-inline {
-        width: 100%;
-    }
-
-    .controls-inline .btn {
-        flex: 1;
-    }
-
-    .service-actions {
-        flex-direction: column;
-    }
-
-    .detail-tabs {
-        overflow-x: auto;
-    }
-}
 
 /* 滚动条样式 */
 .log-content::-webkit-scrollbar {
@@ -1545,6 +1486,12 @@ select.form-control {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+.input-wrapper .input-options {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 0;
 }
 
 .input-wrapper textarea {

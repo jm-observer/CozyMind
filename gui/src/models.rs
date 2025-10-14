@@ -150,3 +150,12 @@ pub struct MqttMessage {
     pub timestamp: String,
 }
 
+/// 发送系统参数请求
+#[derive(Debug, Deserialize)]
+pub struct SendSystemPromptRequest {
+    pub ai_core_id: i32,
+    pub system_prompt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+

@@ -37,14 +37,14 @@
             <!-- 服务管理部分 (AI-Core + Ollama) -->
             <div id="servicesSection" class="section active">
                 <!-- 当前选中的连接 -->
-                <div class="selected-connection-card">
+                <!-- <div class="selected-connection-card">
                     <div class="selected-header">
                         <h2>当前选中连接</h2>
                         <div class="selected-info" id="selectedInfo">
                             <span class="selected-name">未选择</span>
                         </div>
                     </div>
-                </div>
+                </div> -->
 
                 <!-- AI-Core 服务列表 -->
                 <div class="services-card">
@@ -144,68 +144,91 @@
 
             <!-- 模型设定部分 -->
             <div id="modelSetupSection" class="section">
-                <div class="model-setup-card">
-                    <div class="card-header">
-                        <h2>⚙️ 模型系统参数设定</h2>
-                        <p class="description">配置 AI 模型的系统提示词，定义模型的行为和角色</p>
-                    </div>
-
-                    <!-- AI-Core 服务选择 -->
-                    <div class="form-section">
-                        <div class="form-group">
-                            <label>选择 AI-Core 服务 *</label>
-                            <select id="modelAiCoreSelect" onchange="checkAiCoreAvailability()">
-                                <option value="">-- 请选择 AI-Core 服务 --</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- 消息输入区 -->
-                    <div class="form-section">
-                        <div class="form-group">
-                            <label>系统参数 (System Prompt) *</label>
-                            <div class="input-options">
-                                <button class="btn btn-sm btn-secondary" onclick="showMessageSelector()">
-                                    📋 从消息预设选择
-                                </button>
-                                <button class="btn btn-sm btn-secondary" onclick="clearSystemPrompt()">
-                                    🗑️ 清空
+                <div class="chat-container">
+                    <!-- 左侧消息窗口 -->
+                    <div class="chat-main">
+                        <div class="chat-header">
+                            <h2>⚙️ 模型系统参数设定</h2>
+                            <div class="chat-controls">
+                                <button class="btn btn-sm btn-secondary" onclick="clearModelSetupHistory()">
+                                    🗑️ 清空历史
                                 </button>
                             </div>
-                            <textarea 
-                                id="systemPromptInput" 
-                                rows="8" 
-                                placeholder="输入系统参数，例如：&#10;你是一个专业的中文助手，擅长回答各种问题。你的回答应该：&#10;1. 准确、简洁、易懂&#10;2. 使用友好的语气&#10;3. 适时提供相关建议" 
-                                oninput="updateCharCount()"></textarea>
-                            <div class="char-count">
-                                <span id="promptCharCount">0</span> 字符
+                        </div>
+
+                        <!-- 消息历史显示 -->
+                        <div class="chat-messages" id="modelSetupMessages">
+                            <div class="chat-welcome">
+                                <p>⚙️ 欢迎使用模型系统参数设定</p>
+                                <p>配置 AI 模型的系统提示词，定义模型的行为和角色</p>
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label>会话 ID (可选)</label>
-                            <input 
-                                type="text" 
-                                id="sessionIdInput" 
-                                placeholder="留空则自动生成新的会话 ID">
-                            <small class="help-text">使用相同的会话 ID 可以继续之前的对话</small>
+                        <!-- 输入区域 -->
+                        <div class="chat-input-area">
+                            <div class="input-wrapper">
+                                <div class="input-options">
+                                    <button class="btn btn-sm btn-secondary" onclick="showMessageSelector()">
+                                        📋 从消息预设选择
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" onclick="clearSystemPrompt()">
+                                        🗑️ 清空
+                                    </button>
+                                </div>
+                                <textarea 
+                                    id="systemPromptInput" 
+                                    rows="3" 
+                                    placeholder="输入系统参数，例如：你是一个专业的中文助手，擅长回答各种问题..." 
+                                    oninput="updateCharCount()"></textarea>
+                                <div class="input-actions">
+                                    <div class="input-info">
+                                        <span id="promptCharCount">0</span> 字符
+                                    </div>
+                                    <button class="btn btn-primary" onclick="sendSystemPrompt()" id="sendButton">
+                                        🚀 发送系统参数
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- 操作按钮 -->
-                    <div class="action-buttons">
-                        <button class="btn btn-primary btn-large" onclick="sendSystemPrompt()" id="sendButton">
-                            🚀 发送系统参数
-                        </button>
-                        <button class="btn btn-secondary" onclick="resetModelSetupForm()">
-                            🔄 重置表单
-                        </button>
-                    </div>
+                    <!-- 右侧设置面板 -->
+                    <div class="chat-settings">
+                        <div class="settings-card">
+                            <h3>🔧 设置</h3>
+                            
+                            <div class="form-group">
+                                <label>选择 AI-Core 服务 *</label>
+                                <select id="modelAiCoreSelect" onchange="checkAiCoreAvailability()">
+                                    <option value="">-- 请选择服务 --</option>
+                                </select>
+                            </div>
 
-                    <!-- 结果展示区 -->
-                    <div id="modelSetupResult" class="result-section" style="display: none;">
-                        <h3>📊 发送结果</h3>
-                        <div id="resultContent" class="result-content"></div>
+                            <div class="form-group">
+                                <label>会话 ID (可选)</label>
+                                <input 
+                                    type="text" 
+                                    id="sessionIdInput" 
+                                    placeholder="留空自动生成">
+                                <small class="help-text">相同会话 ID 可继续对话</small>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h3>📊 统计信息</h3>
+                            <div class="stats-item">
+                                <span>已发送:</span>
+                                <strong id="modelSetupSentCount">0</strong>
+                            </div>
+                            <div class="stats-item">
+                                <span>成功:</span>
+                                <strong id="modelSetupSuccessCount" style="color: #22c55e;">0</strong>
+                            </div>
+                            <div class="stats-item">
+                                <span>失败:</span>
+                                <strong id="modelSetupFailCount" style="color: #ef4444;">0</strong>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -235,6 +258,14 @@
                         <!-- 输入区域 -->
                         <div class="chat-input-area">
                             <div class="input-wrapper">
+                                <div class="input-options">
+                                    <button class="btn btn-sm btn-secondary" onclick="showChatMessageSelector()">
+                                        📋 从消息预设选择
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" onclick="clearChatInput()">
+                                        🗑️ 清空
+                                    </button>
+                                </div>
                                 <textarea 
                                     id="chatInput" 
                                     rows="3" 
@@ -420,9 +451,9 @@
             </div>
         </div>
 
-        <footer>
+        <!-- <footer>
             <p>CozyMind v0.1.0 | 自动检测间隔: 5秒</p>
-        </footer>
+        </footer> -->
 
     <script src="app.js"></script>
 </body>

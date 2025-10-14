@@ -111,6 +111,18 @@ async fn main() -> anyhow::Result<()> {
     // 初始化日志 - 强制使用 info 级别，不受环境变量影响
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Info)
+        .format(|buf, record| {
+            use std::io::Write;
+            writeln!(
+                buf,
+                "[{} {} {}:{}] {}",
+                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                record.level(),
+                record.file().unwrap_or("unknown"),
+                record.line().unwrap_or(0),
+                record.args()
+            )
+        })
         .init();
 
     // 从环境变量读取配置，如果未设置则使用默认值
