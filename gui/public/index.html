@@ -171,6 +171,9 @@
                                     <button class="btn btn-sm btn-secondary" onclick="showMessageSelector()">
                                         📋 从消息预设选择
                                     </button>
+                                    <button class="btn btn-sm btn-primary" onclick="showMessageSelectorAndSend()">
+                                        📋 选择直接发送
+                                    </button>
                                     <button class="btn btn-sm btn-secondary" onclick="clearSystemPrompt()">
                                         🗑️ 清空
                                     </button>
@@ -179,7 +182,8 @@
                                     id="systemPromptInput" 
                                     rows="3" 
                                     placeholder="输入系统参数，例如：你是一个专业的中文助手，擅长回答各种问题..." 
-                                    oninput="updateCharCount()"></textarea>
+                                    oninput="updateCharCount()"
+                                    onkeydown="handleModelSetupKeydown(event)"></textarea>
                                 <div class="input-actions">
                                     <div class="input-info">
                                         <span id="promptCharCount">0</span> 字符
@@ -261,6 +265,9 @@
                                 <div class="input-options">
                                     <button class="btn btn-sm btn-secondary" onclick="showChatMessageSelector()">
                                         📋 从消息预设选择
+                                    </button>
+                                    <button class="btn btn-sm btn-primary" onclick="showChatMessageSelectorAndSend()">
+                                        📋 选择直接发送
                                     </button>
                                     <button class="btn btn-sm btn-secondary" onclick="clearChatInput()">
                                         🗑️ 清空

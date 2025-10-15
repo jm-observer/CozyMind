@@ -1500,7 +1500,17 @@ async function checkAiCoreAvailability() {
 
 // 显示消息选择器
 function showMessageSelector() {
-    console.log('showMessageSelector called, messagePresets length:', messagePresets.length);
+    showMessageSelectorWithCallback(selectMessageForPrompt);
+}
+
+// 显示消息选择器并支持直接发送
+function showMessageSelectorAndSend() {
+    showMessageSelectorWithCallback(selectMessageForPromptAndSend);
+}
+
+// 通用的消息选择器显示函数
+function showMessageSelectorWithCallback(callback) {
+    console.log('showMessageSelectorWithCallback called, messagePresets length:', messagePresets.length);
     
     const modal = document.getElementById('messageSelectorModal');
     const listDiv = document.getElementById('messageSelectorList');
@@ -1534,7 +1544,7 @@ function showMessageSelector() {
                 <div class="message-preview">${truncate(msg.content, 100)}</div>
                 <div class="message-type-badge">${getMessageTypeLabel(msg.type)}</div>
             `;
-            item.onclick = () => selectMessageForPrompt(msg);
+            item.onclick = () => callback(msg);
             listDiv.appendChild(item);
         });
     }
@@ -1555,6 +1565,15 @@ function selectMessageForPrompt(message) {
     closeMessageSelector();
 }
 
+// 选择消息填充到系统参数输入框并直接发送
+function selectMessageForPromptAndSend(message) {
+    document.getElementById('systemPromptInput').value = message.content;
+    updateCharCount();
+    closeMessageSelector();
+    // 直接发送
+    sendSystemPrompt();
+}
+
 // 清空系统参数
 function clearSystemPrompt() {
     document.getElementById('systemPromptInput').value = '';
@@ -1567,6 +1586,115 @@ function updateCharCount() {
     const countSpan = document.getElementById('promptCharCount');
     if (textarea && countSpan) {
         countSpan.textContent = textarea.value.length;
+    }
+}
+
+// 模型设定输入框快捷键处理 (Enter 发送, Shift+Enter 换行)
+function handleModelSetupKeydown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendSystemPrompt();
+    }
+}
+
+// 提取主要响应内容
+function extractMainResponse(fullMessage) {
+    // 查找 "Ollama 响应: " 后面的内容
+    const match = fullMessage.match(/Ollama 响应:\s*([^|]+)/);
+    if (match) {
+        return match[1].trim();
+    }
+    return fullMessage;
+}
+
+// 提取响应详情
+function extractResponseDetails(fullMessage, data) {
+    const details = [];
+    
+    // 状态
+    if (data.status) {
+        details.push(`状态: ${data.status}`);
+    }
+    
+    // 性能信息
+    const performanceMatch = fullMessage.match(/性能:\s*([^|]+)/);
+    if (performanceMatch) {
+        details.push(`性能: ${performanceMatch[1].trim()}`);
+    }
+    
+    // 会话ID
+    if (data.session_id) {
+        details.push(`会话 ID: ${data.session_id}`);
+    }
+    
+    return details;
+}
+
+// 添加带折叠详情的模型设定消息
+function addModelSetupMessageWithDetails(role, mainContent, details, timestamp, isSuccess) {
+    const messagesDiv = document.getElementById('modelSetupMessages');
+    
+    // 移除欢迎消息
+    const welcome = messagesDiv.querySelector('.chat-welcome');
+    if (welcome) welcome.remove();
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message chat-message-assistant';
+    
+    const time = timestamp.toLocaleTimeString('zh-CN');
+    const roleLabel = isSuccess ? '✅ 响应' : '❌ 错误';
+    
+    // 生成唯一ID用于折叠
+    const detailsId = `details-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    messageDiv.innerHTML = `
+        <div class="message-header">
+            <span class="message-role">${roleLabel}</span>
+            <span class="message-time">${time}</span>
+        </div>
+        <div class="message-content">
+            <div class="response-main">${escapeHtml(mainContent)}</div>
+            ${details.length > 0 ? `
+                <div class="response-details">
+                    <button class="details-toggle" onclick="toggleDetails('${detailsId}')">
+                        <span class="toggle-icon">▼</span> 详细信息
+                    </button>
+                    <div class="details-content" id="${detailsId}" style="display: none;">
+                        ${details.map(detail => `<div class="detail-item">${escapeHtml(detail)}</div>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+    
+    messagesDiv.appendChild(messageDiv);
+    
+    // 滚动到底部
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    
+    // 保存到历史（仅在不是从历史渲染时保存）
+    if (!timestamp.fromHistory) {
+        modelSetupHistory.push({ 
+            role, 
+            content: mainContent, 
+            details: details,
+            timestamp: timestamp.toISOString(), 
+            isSuccess 
+        });
+    }
+}
+
+// 切换详情显示/隐藏
+function toggleDetails(detailsId) {
+    const detailsContent = document.getElementById(detailsId);
+    const toggleIcon = detailsContent.previousElementSibling.querySelector('.toggle-icon');
+    
+    if (detailsContent.style.display === 'none') {
+        detailsContent.style.display = 'block';
+        toggleIcon.textContent = '▲';
+    } else {
+        detailsContent.style.display = 'none';
+        toggleIcon.textContent = '▼';
     }
 }
 
@@ -1631,9 +1759,13 @@ async function sendSystemPrompt() {
         const data = await response.json();
         
         if (response.ok && data.status === 'success') {
-            // 添加成功响应
-            const responseText = `✅ 发送成功\n状态: ${data.status}\n消息: ${data.message || '无'}\n会话 ID: ${data.session_id || '未返回'}`;
-            addModelSetupMessage('response', responseText, new Date(), true);
+            // 解析消息内容，提取主要响应
+            const fullMessage = data.message || '';
+            const mainResponse = extractMainResponse(fullMessage);
+            const details = extractResponseDetails(fullMessage, data);
+            
+            // 添加成功响应（带折叠详情）
+            addModelSetupMessageWithDetails('response', mainResponse, details, new Date(), true);
             
             modelSetupStats.success++;
             
@@ -1760,7 +1892,13 @@ function renderModelSetupMessages() {
         `;
     } else {
         modelSetupHistory.forEach(msg => {
-            displayModelSetupMessage(msg.role, msg.content, new Date(msg.timestamp), msg.isSuccess);
+            if (msg.details && msg.details.length > 0) {
+                // 使用带详情的显示方式
+                addModelSetupMessageWithDetails(msg.role, msg.content, msg.details, new Date(msg.timestamp), msg.isSuccess);
+            } else {
+                // 使用普通显示方式
+                displayModelSetupMessage(msg.role, msg.content, new Date(msg.timestamp), msg.isSuccess);
+            }
         });
     }
 }
@@ -1818,9 +1956,9 @@ function updateChatCharCount() {
     }
 }
 
-// 处理键盘事件 (Ctrl+Enter 发送)
+// 处理键盘事件 (Enter 发送，Shift+Enter 换行)
 function handleChatKeydown(event) {
-    if (event.ctrlKey && event.key === 'Enter') {
+    if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         sendChatMessage();
     }
@@ -2139,7 +2277,17 @@ function escapeHtml(text) {
 
 // 显示消息选择器（用于对话输入）
 function showChatMessageSelector() {
-    console.log('showChatMessageSelector called, messagePresets length:', messagePresets.length);
+    showChatMessageSelectorWithCallback(selectMessageForChat);
+}
+
+// 显示消息选择器并支持直接发送（用于对话输入）
+function showChatMessageSelectorAndSend() {
+    showChatMessageSelectorWithCallback(selectMessageForChatAndSend);
+}
+
+// 通用的对话消息选择器显示函数
+function showChatMessageSelectorWithCallback(callback) {
+    console.log('showChatMessageSelectorWithCallback called, messagePresets length:', messagePresets.length);
     
     const modal = document.getElementById('messageSelectorModal');
     const listDiv = document.getElementById('messageSelectorList');
@@ -2160,10 +2308,10 @@ function showChatMessageSelector() {
     // 如果消息预设未加载，先加载
     if (messagePresets.length === 0) {
         loadMessages().then(() => {
-            populateChatMessageSelector(listDiv);
+            populateChatMessageSelectorWithCallback(listDiv, callback);
         });
     } else {
-        populateChatMessageSelector(listDiv);
+        populateChatMessageSelectorWithCallback(listDiv, callback);
     }
     
     modal.style.display = 'flex';
@@ -2172,6 +2320,11 @@ function showChatMessageSelector() {
 
 // 填充对话消息选择器列表
 function populateChatMessageSelector(listDiv) {
+    populateChatMessageSelectorWithCallback(listDiv, selectMessageForChat);
+}
+
+// 通用的填充对话消息选择器列表函数
+function populateChatMessageSelectorWithCallback(listDiv, callback) {
     listDiv.innerHTML = '';
     
     if (messagePresets.length === 0) {
@@ -2187,7 +2340,7 @@ function populateChatMessageSelector(listDiv) {
                 <div class="message-preview">${truncate(msg.content, 100)}</div>
                 <div class="message-type-badge">${getMessageTypeLabel(msg.type)}</div>
             `;
-            item.onclick = () => selectMessageForChat(msg);
+            item.onclick = () => callback(msg);
             listDiv.appendChild(item);
         });
     }
@@ -2198,6 +2351,15 @@ function selectMessageForChat(message) {
     document.getElementById('chatInput').value = message.content;
     updateChatCharCount();
     closeMessageSelector();
+}
+
+// 选择消息填充到对话输入框并直接发送
+function selectMessageForChatAndSend(message) {
+    document.getElementById('chatInput').value = message.content;
+    updateChatCharCount();
+    closeMessageSelector();
+    // 直接发送
+    sendChatMessage();
 }
 
 // 清空对话输入框

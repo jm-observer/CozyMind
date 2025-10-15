@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::ollama_client::OllamaResponse;
+
 /// 系统参数设定请求
 #[derive(Debug, Clone, Deserialize)]
 pub struct SetSystemPromptRequest {
@@ -34,13 +36,7 @@ struct OllamaSystemRequest {
     context: Option<Vec<i64>>,
 }
 
-/// Ollama 响应体
-#[derive(Debug, Clone, Deserialize)]
-struct OllamaResponse {
-    response: String,
-    #[serde(default)]
-    context: Option<Vec<i64>>,
-}
+/// Ollama 响应体（使用 ollama_client 模块中的定义）
 
 /// 会话存储结构
 pub struct SessionStore {
@@ -88,11 +84,11 @@ pub async fn set_system_prompt(
         uuid::Uuid::new_v4().to_string()
     });
 
-    log::info!(
-        "📝 设定系统参数 - 会话ID: {}, 系统提示: {}",
-        session_id,
-        &request.system_prompt
-    );
+    // log::info!(
+    //     "📝 设定系统参数 - 会话ID: {}, 系统提示: {}",
+    //     session_id,
+    //     &request.system_prompt
+    // );
 
     // 获取会话上下文（如果存在）
     let context = session_store.get_context(&session_id).await;
@@ -113,7 +109,7 @@ pub async fn set_system_prompt(
         stream: false,
         context,
     };
-
+    // log::info!("Ollama 请求: {:?}", ollama_request);
     // 发送 HTTP 请求到 Ollama
     let client = reqwest::Client::new();
     match client
@@ -123,9 +119,20 @@ pub async fn set_system_prompt(
         .await
     {
         Ok(response) => {
-            match response.json::<OllamaResponse>().await {
+            let response = response.text().await.unwrap();
+            // log::info!("Ollama 响应: {}", response);
+
+            match serde_json::from_str::<OllamaResponse>(&response) {
                 Ok(ollama_response) => {
+                    // 记录性能统计信息
+                    let stats = ollama_response.performance_stats();
                     log::info!("✅ Ollama 响应成功: {}", &ollama_response.response);
+                    log::info!("📊 性能统计: {}", stats.format_summary());
+                    
+                    // 如果有思考过程，记录它
+                    if ollama_response.has_thinking() {
+                        log::debug!("🧠 思考过程: {}", ollama_response.thinking.as_ref().unwrap());
+                    }
 
                     // 保存会话上下文
                     if let Some(new_context) = ollama_response.context {
@@ -138,8 +145,9 @@ pub async fn set_system_prompt(
                     HttpResponse::Ok().json(SetSystemPromptResponse {
                         status: "success".to_string(),
                         message: format!(
-                            "系统参数已设定，Ollama 响应: {}",
-                            ollama_response.response
+                            "系统参数已设定，Ollama 响应: {} | 性能: {}",
+                            ollama_response.response,
+                            stats.format_summary()
                         ),
                         session_id: Some(session_id),
                     })
