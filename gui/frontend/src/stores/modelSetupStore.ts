@@ -13,6 +13,7 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const history = ref<ModelSetupHistory[]>([])
+  const messages = ref<any[]>([]) // 对话消息列表
   const stats = ref({
     sent: 0,
     success: 0,
@@ -37,29 +38,55 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
     return messageStore.systemMessages || []
   })
 
-  const charCount = computed(() => systemPrompt.value.length)
+  const charCount = computed(() => {
+    const count = systemPrompt.value.length
+    console.log('[Model Setup Store] charCount 计算:', {
+      systemPrompt: systemPrompt.value,
+      length: count,
+      timestamp: new Date().toISOString()
+    })
+    return count
+  })
 
   const canSend = computed(() => {
     const hasAiCore = !!selectedAiCoreId.value
     const hasPrompt = systemPrompt.value.trim().length > 0
     const notLoading = !loading.value
+    const result = hasAiCore && hasPrompt && notLoading
     
     console.log('[Model Setup Store] canSend 检查:', {
       selectedAiCoreId: selectedAiCoreId.value,
       hasAiCore,
       systemPrompt: systemPrompt.value,
+      systemPromptLength: systemPrompt.value.length,
+      systemPromptTrimmed: systemPrompt.value.trim(),
       hasPrompt,
       loading: loading.value,
       notLoading,
-      result: hasAiCore && hasPrompt && notLoading
+      result,
+      timestamp: new Date().toISOString()
     })
     
-    return hasAiCore && hasPrompt && notLoading
+    return result
   })
 
   // 动作
   const setSystemPrompt = (prompt: string) => {
+    console.log('[Model Setup Store] setSystemPrompt 调用:', {
+      newPrompt: prompt,
+      oldPrompt: systemPrompt.value,
+      promptLength: prompt.length,
+      timestamp: new Date().toISOString()
+    })
+    
     systemPrompt.value = prompt
+    
+    console.log('[Model Setup Store] systemPrompt 已更新:', {
+      currentValue: systemPrompt.value,
+      isReactive: systemPrompt.__v_isRef,
+      canSend: canSend.value,
+      charCount: charCount.value
+    })
   }
 
   const setSelectedAiCore = (id: number | null) => {
@@ -157,7 +184,13 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
 
   const selectMessageForPrompt = (message: any) => {
     console.log('[Model Setup Store] 选择消息到输入框:', message.title, message.content)
+    console.log('[Model Setup Store] 设置前的 systemPrompt.value:', systemPrompt.value)
+    
     systemPrompt.value = message.content
+    
+    console.log('[Model Setup Store] 设置后的 systemPrompt.value:', systemPrompt.value)
+    console.log('[Model Setup Store] systemPrompt 是否为响应式:', systemPrompt)
+    console.log('[Model Setup Store] systemPrompt 的 __v_isRef:', systemPrompt.__v_isRef)
   }
 
   const selectMessageAndSend = async (message: any) => {
@@ -209,6 +242,7 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
     loading,
     error,
     history,
+    messages,
     stats,
     
     // 计算属性

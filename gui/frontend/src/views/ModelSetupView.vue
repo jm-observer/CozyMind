@@ -13,57 +13,85 @@
             </div>
           </div>
 
-          <!-- 消息历史显示 -->
-          <div class="chat-messages" ref="messagesContainer">
-            <div v-if="history.length === 0" class="chat-welcome">
-              <p>⚙️ 欢迎使用模型系统参数设定</p>
-              <p>配置 AI 模型的系统提示词，定义模型的行为和角色</p>
-            </div>
-            
-            <div
-              v-for="item in history"
-              :key="item.id"
-              class="message-item"
-              :class="`message-${item.status}`"
-            >
-              <div class="message-header">
-                <div class="message-meta">
-                  <span class="message-time">{{ formatTime(item.timestamp) }}</span>
-                  <span class="message-service">{{ item.ai_core_name }}</span>
-                  <span class="message-status" :class="`status-${item.status}`">
-                    {{ item.status === 'success' ? '✅ 成功' : '❌ 失败' }}
-                  </span>
-                </div>
-                <div class="message-actions">
-                  <el-button size="small" @click="copyToPrompt(item)">
-                    📋 复制到输入框
-                  </el-button>
-                </div>
-              </div>
-              
-              <div class="message-content">
-                <div class="prompt-preview">
-                  <strong>系统参数：</strong>
-                  <p>{{ truncateText(item.system_prompt, 200) }}</p>
-                </div>
-                
-                <div v-if="item.session_id" class="session-info">
-                  <strong>会话ID：</strong>
-                  <code>{{ item.session_id }}</code>
-                </div>
-                
-                <div v-if="item.response_time" class="response-info">
-                  <strong>响应时间：</strong>
-                  <span>{{ item.response_time }}ms</span>
-                </div>
-                
-                <div v-if="item.error_message" class="error-info">
-                  <strong>错误信息：</strong>
-                  <p class="error-text">{{ item.error_message }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+           <!-- 消息历史显示 -->
+           <div class="chat-messages" ref="messagesContainer">
+             <div v-if="history.length === 0 && messages.length === 0" class="chat-welcome">
+               <p>⚙️ 欢迎使用模型系统参数设定</p>
+               <p>配置 AI 模型的系统提示词，定义模型的行为和角色</p>
+             </div>
+             
+             <!-- 历史记录 -->
+             <div
+               v-for="item in history"
+               :key="item.id"
+               class="history-item"
+               :class="`history-${item.status}`"
+             >
+               <div class="history-header">
+                 <div class="history-meta">
+                   <span class="history-time">{{ formatTime(item.timestamp) }}</span>
+                   <span class="history-service">{{ item.ai_core_name }}</span>
+                   <span class="history-status" :class="`status-${item.status}`">
+                     {{ item.status === 'success' ? '✅ 成功' : '❌ 失败' }}
+                   </span>
+                 </div>
+               </div>
+               
+               <div class="history-content">
+                 <div class="system-prompt-card">
+                   <div class="system-prompt-header">
+                     <strong>系统参数:</strong>
+                   </div>
+                   <div class="system-prompt-text">
+                     {{ item.system_prompt }}
+                   </div>
+                   <div class="response-time">
+                     响应时间: {{ item.response_time }}ms
+                   </div>
+                 </div>
+               </div>
+             </div>
+
+             <!-- 对话消息 -->
+             <div
+               v-for="message in messages"
+               :key="message.id"
+               class="message-item"
+               :class="{
+                 'message-user': message.role === 'user',
+                 'message-assistant': message.role === 'assistant'
+               }"
+             >
+               <div 
+                 class="message-content"
+                 :class="getMessageLengthClass(message.content)"
+               >
+                 <div class="message-header">
+                   <span class="message-role">
+                     {{ message.role === 'user' ? '👤 用户' : '🤖 AI助手' }}
+                   </span>
+                   <span class="message-time">
+                     {{ formatTime(message.timestamp) }}
+                   </span>
+                 </div>
+                 <div class="message-text">{{ message.content }}</div>
+                 <div v-if="message.status && message.status !== 'sent'" class="message-status">
+                   <span 
+                     class="status-indicator"
+                     :class="{
+                       'status-sending': message.status === 'sending',
+                       'status-failed': message.status === 'failed'
+                     }"
+                   >
+                     {{ 
+                       message.status === 'sending' ? '发送中...' :
+                       message.status === 'failed' ? '发送失败' : ''
+                     }}
+                   </span>
+                 </div>
+               </div>
+             </div>
+           </div>
 
           <!-- 输入区域 -->
           <div class="chat-input-area">
@@ -81,11 +109,10 @@
               </div>
               
               <el-input
-                v-model="systemPrompt"
+                v-model="localSystemPrompt"
                 type="textarea"
                 :rows="3"
                 placeholder="输入系统参数，例如：你是一个专业的中文助手，擅长回答各种问题..."
-                @input="updateCharCount"
                 @keydown="handleKeydown"
               />
               
@@ -97,7 +124,7 @@
                   type="primary" 
                   @click="sendSystemPrompt"
                   :loading="loading"
-                  :disabled="!canSend"
+                  :disabled="!localCanSend"
                 >
                   🚀 发送系统参数
                 </el-button>
@@ -105,6 +132,7 @@
             </div>
           </div>
         </div>
+
 
         <!-- 右侧配置面板 -->
         <div class="chat-sidebar">
@@ -236,20 +264,24 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { Search, Loading } from '@element-plus/icons-vue'
 import { useModelSetupStore } from '@/stores/modelSetupStore'
 import { useMessageStore } from '@/stores/messageStore'
+import { useAICoreStore } from '@/stores/aiCoreStore'
 import type { MessagePreset } from '@/types/api'
 
 // 使用 Pinia store
 const modelSetupStore = useModelSetupStore()
 const messageStore = useMessageStore()
+const aiCoreStore = useAICoreStore()
 
 // 本地状态
 const messageSelectorVisible = ref(false)
 const messageSearchQuery = ref('')
 const messagesContainer = ref<HTMLElement>()
+const localSystemPrompt = ref('') // 本地输入框的值
 
 // 计算属性
 const {
@@ -259,12 +291,23 @@ const {
   loading,
   error,
   history,
+  messages,
   stats,
   selectedAiCore,
   availableAiCores,
-  charCount,
   canSend
-} = modelSetupStore
+} = storeToRefs(modelSetupStore)
+
+// 本地字符计数
+const charCount = computed(() => localSystemPrompt.value.length)
+
+// 本地 canSend 计算属性
+const localCanSend = computed(() => {
+  const hasAiCore = !!selectedAiCoreId.value
+  const hasPrompt = localSystemPrompt.value.trim().length > 0
+  const notLoading = !loading.value
+  return hasAiCore && hasPrompt && notLoading
+})
 
 // 直接获取 systemMessages，避免解构问题
 const systemMessages = computed(() => {
@@ -297,27 +340,82 @@ const filteredSystemMessages = computed(() => {
 
 // 方法
 const loadData = async () => {
+  console.log('[ModelSetup] 开始加载数据')
   try {
     await Promise.all([
       modelSetupStore.loadAiCores(),
       messageStore.loadMessages()
     ])
+    
+    console.log('[ModelSetup] 数据加载完成:', {
+      selectedAiCoreId: selectedAiCoreId.value,
+      aiCoresCount: aiCoreStore.aiCores.length,
+      onlineCoresCount: aiCoreStore.aiCores.filter(core => core.status === 'online').length,
+      canSend: canSend.value
+    })
   } catch (err) {
+    console.error('[ModelSetup] 加载数据失败:', err)
     ElMessage.error('加载数据失败')
   }
 }
 
 const sendSystemPrompt = async () => {
+  // 显示用户消息（发送中状态）
+  const userMessage = {
+    id: Date.now().toString(),
+    content: localSystemPrompt.value,
+    role: 'user' as const,
+    timestamp: new Date().toISOString(),
+    status: 'sending' as const
+  }
+  
+  // 添加到消息列表
+  messages.value.push(userMessage)
+  console.log('[ModelSetup] 添加用户消息后，消息数量:', messages.value.length)
+  
+  // 滚动到底部
+  scrollToBottom()
+  
   try {
+    // 发送前先更新 store 中的 systemPrompt
+    modelSetupStore.setSystemPrompt(localSystemPrompt.value)
     await modelSetupStore.sendSystemPrompt()
-    ElMessage.success('系统参数发送成功')
+    
+    // 更新消息状态为已发送
+    const messageIndex = messages.value.findIndex(m => m.id === userMessage.id)
+    if (messageIndex !== -1) {
+      messages.value[messageIndex].status = 'sent'
+    }
+    
+    // 添加AI回复消息
+    const aiMessage = {
+      id: (Date.now() + 1).toString(),
+      content: '系统参数已发送成功',
+      role: 'assistant' as const,
+      timestamp: new Date().toISOString(),
+      status: 'sent' as const
+    }
+    messages.value.push(aiMessage)
+    
+    console.log('[ModelSetup] 发送完成，总消息数:', messages.value.length)
     scrollToBottom()
+    
+    ElMessage.success('系统参数发送成功')
   } catch (err) {
+    console.error('[ModelSetup] 发送失败:', err)
+    
+    // 更新消息状态为失败
+    const messageIndex = messages.value.findIndex(m => m.id === userMessage.id)
+    if (messageIndex !== -1) {
+      messages.value[messageIndex].status = 'failed'
+    }
+    
     ElMessage.error('发送失败')
   }
 }
 
 const clearSystemPrompt = () => {
+  localSystemPrompt.value = ''
   modelSetupStore.clearSystemPrompt()
 }
 
@@ -389,23 +487,92 @@ const closeMessageSelector = () => {
 }
 
 const selectMessage = (message: MessagePreset) => {
-  modelSetupStore.selectMessageForPrompt(message)
+  console.log('[ModelSetup] 开始选择消息:', message.title, message.content)
+  
+  // 直接更新本地输入框
+  localSystemPrompt.value = message.content
+  console.log('[ModelSetup] 本地输入框已更新:', localSystemPrompt.value)
+  
   closeMessageSelector()
+  console.log('[ModelSetup] 消息选择完成，选择器已关闭')
 }
 
 const selectMessageAndSend = async (message: MessagePreset) => {
+  console.log('[ModelSetup] 开始选择并发送消息:', message.title, message.content)
+  
+  // 立即关闭选择框
+  closeMessageSelector()
+  console.log('[ModelSetup] 选择器已关闭')
+  
+  // 更新本地输入框
+  localSystemPrompt.value = message.content
+  console.log('[ModelSetup] 本地输入框已更新:', localSystemPrompt.value)
+  
+  
+  // 显示用户消息（发送中状态）
+  const userMessage = {
+    id: Date.now().toString(),
+    content: message.content,
+    role: 'user' as const,
+    timestamp: new Date().toISOString(),
+    status: 'sending' as const
+  }
+  
+  // 添加到消息列表
+  messages.value.push(userMessage)
+  console.log('[ModelSetup] 添加用户消息后，消息数量:', messages.value.length)
+  
+  // 滚动到底部
+  scrollToBottom()
+  
+  // 异步发送系统参数
   try {
-    await modelSetupStore.selectMessageAndSend(message)
-    closeMessageSelector()
+    // 发送前更新 store 中的 systemPrompt
+    modelSetupStore.setSystemPrompt(message.content)
+    await modelSetupStore.sendSystemPrompt()
+    
+    // 更新用户消息状态为已发送
+    const msgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
+    if (msgIndex !== -1) {
+      messages.value[msgIndex].status = 'sent'
+      console.log('[ModelSetup] 用户消息状态更新为已发送')
+    }
+    
+    // 显示AI回复消息
+    const aiMessage = {
+      id: (Date.now() + 1).toString(),
+      content: '系统参数已成功发送到AI-Core服务',
+      role: 'assistant' as const,
+      timestamp: new Date().toISOString(),
+      status: 'sent' as const
+    }
+    
+    messages.value.push(aiMessage)
+    console.log('[ModelSetup] 添加AI回复消息后，消息数量:', messages.value.length)
+    
     scrollToBottom()
   } catch (err) {
-    // 错误消息已在 store 内部处理
+    // 更新用户消息状态为失败
+    const msgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
+    if (msgIndex !== -1) {
+      messages.value[msgIndex].status = 'failed'
+      console.log('[ModelSetup] 用户消息状态更新为失败')
+    }
+    
+    // 显示错误消息
+    const errorMessage = {
+      id: (Date.now() + 1).toString(),
+      content: '发送失败，请检查AI-Core服务状态',
+      role: 'assistant' as const,
+      timestamp: new Date().toISOString(),
+      status: 'failed' as const
+    }
+    
+    messages.value.push(errorMessage)
+    console.log('[ModelSetup] 添加错误消息后，消息数量:', messages.value.length)
+    
+    scrollToBottom()
   }
-}
-
-const copyToPrompt = (historyItem: any) => {
-  modelSetupStore.setSystemPrompt(historyItem.system_prompt)
-  ElMessage.success('已复制到输入框')
 }
 
 const handleAiCoreChange = () => {
@@ -419,9 +586,6 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
-const updateCharCount = () => {
-  // 字符计数逻辑已在 computed 中处理
-}
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -449,6 +613,17 @@ const formatTime = (timestamp: string) => {
   return new Date(timestamp).toLocaleString()
 }
 
+const getMessageLengthClass = (content: string) => {
+  const length = content.length
+  if (length <= 20) {
+    return 'message-short'
+  } else if (length <= 80) {
+    return 'message-medium'
+  } else {
+    return 'message-long'
+  }
+}
+
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString()
 }
@@ -458,6 +633,7 @@ const goToMessages = () => {
   window.location.hash = '#/messages'
   closeMessageSelector()
 }
+
 
 onMounted(() => {
   loadData()
@@ -509,10 +685,13 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   margin-bottom: 20px;
-  padding: 10px;
+  padding: 20px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .chat-welcome {
@@ -521,30 +700,58 @@ onMounted(() => {
   padding: 40px 20px;
 }
 
-.message-item {
+.history-item {
   background: white;
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 12px;
+  margin-right: auto;
+  width: 75%;
+  max-width: 600px;
+  min-width: 300px;
   border-left: 4px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
 }
 
-.message-item.message-success {
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .history-item {
+    width: 90%;
+    max-width: none;
+    min-width: 250px;
+  }
+}
+
+@media (max-width: 480px) {
+  .history-item {
+    width: 95%;
+    min-width: 200px;
+    padding: 12px;
+  }
+}
+
+.history-item:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.history-item.history-success {
   border-left-color: #10b981;
 }
 
-.message-item.message-error {
+.history-item.history-error {
   border-left-color: #ef4444;
 }
 
-.message-header {
+.history-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
 }
 
-.message-meta {
+.history-meta {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -552,19 +759,55 @@ onMounted(() => {
   color: #6b7280;
 }
 
-.message-time {
+.history-time {
   font-weight: 500;
 }
 
-.message-service {
+.history-service {
   background: #f3f4f6;
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 12px;
 }
 
-.message-status {
+.history-status {
   font-size: 12px;
+  font-weight: 500;
+}
+
+.history-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.history-content {
+  margin-top: 12px;
+}
+
+.system-prompt-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.system-prompt-header {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.system-prompt-text {
+  font-size: 14px;
+  color: #1f2937;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.response-time {
+  font-size: 12px;
+  color: #6b7280;
   font-weight: 500;
 }
 
@@ -712,9 +955,210 @@ onMounted(() => {
   color: #991b1b;
 }
 
+/* 消息显示区域样式 */
+.messages-section {
+  margin: 20px 0;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 16px;
+}
+
+.messages-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.message-item {
+  margin-bottom: 16px;
+  display: flex;
+  width: 100%;
+}
+
+.message-item:last-child {
+  margin-bottom: 0;
+}
+
+.message-user {
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.message-assistant {
+  justify-content: flex-start;
+  margin-right: auto;
+}
+
+.message-content {
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  max-width: 70%;
+  min-width: 120px;
+  width: fit-content;
+  word-wrap: break-word;
+  position: relative; /* For arrow */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: width 0.2s ease;
+}
+
+/* 根据内容长度调整宽度 */
+.message-content.message-short {
+  max-width: 30%;
+  min-width: 80px;
+}
+
+.message-content.message-medium {
+  max-width: 50%;
+  min-width: 100px;
+}
+
+.message-content.message-long {
+  max-width: 70%;
+  min-width: 120px;
+}
+
+/* 超短消息特殊处理 */
+.message-content.message-short {
+  max-width: 25%;
+}
+
+.message-user .message-content {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  border-color: #93c5fd;
+  border-bottom-right-radius: 4px;
+  margin-left: auto;
+}
+
+.message-assistant .message-content {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border-color: #d1d5db;
+  border-bottom-left-radius: 4px;
+  margin-right: auto;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.message-user .message-header {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.message-assistant .message-header {
+  text-align: left;
+}
+
+.message-role {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.message-time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.message-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #374151;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.message-user .message-text {
+  text-align: right;
+}
+
+.message-assistant .message-text {
+  text-align: left;
+}
+
+.message-status {
+  margin-top: 8px;
+}
+
+.message-user .message-status {
+  text-align: right;
+}
+
+.message-assistant .message-status {
+  text-align: left;
+}
+
+.status-indicator.status-sending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-indicator.status-sent {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-indicator.status-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .status-indicator.status-checking {
   background: #fef3c7;
   color: #92400e;
+}
+
+/* 消息气泡箭头效果 */
+.message-user .message-content::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: -8px;
+  width: 0;
+  height: 0;
+  border: 8px solid transparent;
+  border-left-color: #dbeafe;
+  border-bottom: none;
+  border-right: none;
+}
+
+.message-assistant .message-content::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -8px;
+  width: 0;
+  height: 0;
+  border: 8px solid transparent;
+  border-right-color: #f3f4f6;
+  border-bottom: none;
+  border-left: none;
+}
+
+.message-content {
+  position: relative;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .message-content {
+    max-width: 85%;
+  }
 }
 
 .message-selector {

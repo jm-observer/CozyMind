@@ -77,10 +77,9 @@ export interface SystemPromptRequest {
 
 // 系统参数响应
 export interface SystemPromptResponse {
-  success: boolean
-  message?: string
-  error?: string
-  response_time?: number
+  message: string
+  session_id: string
+  status: 'success' | 'error'
 }
 
 // 模型设定历史记录
@@ -94,4 +93,37 @@ export interface ModelSetupHistory {
   status: 'success' | 'error'
   response_time?: number
   error_message?: string
+}
+
+// 聊天相关类型
+export interface ChatMessage {
+  id: string
+  content: string
+  role: 'user' | 'assistant' | 'system'
+  timestamp: string
+  status?: 'sending' | 'sent' | 'failed'
+  session_id?: string
+}
+
+export interface ChatSession {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+  message_count: number
+  last_message?: string
+}
+
+export interface SendMessageRequest {
+  message: string
+  session_id?: string
+  ai_core_id: number
+}
+
+export interface SendMessageResponse {
+  success: boolean
+  message_id: string
+  response: string
+  session_id: string
+  timestamp: string
 }

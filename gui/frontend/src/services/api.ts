@@ -1,5 +1,20 @@
 import axios from 'axios'
-import type { ApiResponse, AICoreConfig, OllamaConfig, CheckConnectionRequest, CheckConnectionResponse, MessagePreset, AddMessageRequest, UpdateMessageRequest, SystemPromptRequest, SystemPromptResponse } from '@/types/api'
+import type { 
+  ApiResponse, 
+  AICoreConfig, 
+  OllamaConfig, 
+  CheckConnectionRequest, 
+  CheckConnectionResponse, 
+  MessagePreset, 
+  AddMessageRequest, 
+  UpdateMessageRequest, 
+  SystemPromptRequest, 
+  SystemPromptResponse,
+  ChatMessage,
+  ChatSession,
+  SendMessageRequest,
+  SendMessageResponse
+} from '@/types/api'
 
 // 创建 axios 实例
 const api = axios.create({
@@ -180,11 +195,64 @@ export const messageApi = {
 export const modelSetupApi = {
   // 发送系统参数
   async sendSystemPrompt(request: SystemPromptRequest): Promise<SystemPromptResponse> {
-    const response = await api.post<ApiResponse<SystemPromptResponse>>('/system-prompt', request)
+    const response = await api.post('/system-prompt', request)
+    
+    // 后端直接返回响应数据，不是标准的 ApiResponse 格式
+    if (response.data.status === 'success') {
+      return {
+        message: response.data.message,
+        session_id: response.data.session_id,
+        status: response.data.status
+      }
+    }
+    throw new Error(response.data.error || '发送系统参数失败')
+  }
+}
+
+// 聊天相关 API
+export const chatApi = {
+  // 发送消息
+  async sendMessage(request: SendMessageRequest): Promise<SendMessageResponse> {
+    const response = await api.post<ApiResponse<SendMessageResponse>>('/chat/send', request)
     if (response.data.success) {
       return response.data.data!
     }
-    throw new Error(response.data.error || '发送系统参数失败')
+    throw new Error(response.data.error || '发送消息失败')
+  },
+
+  // 获取会话列表
+  async getSessions(): Promise<ChatSession[]> {
+    const response = await api.get<ApiResponse<ChatSession[]>>('/chat/sessions')
+    if (response.data.success) {
+      return response.data.data!
+    }
+    throw new Error(response.data.error || '获取会话列表失败')
+  },
+
+  // 获取会话消息
+  async getSessionMessages(sessionId: string): Promise<ChatMessage[]> {
+    const response = await api.get<ApiResponse<ChatMessage[]>>(`/chat/sessions/${sessionId}/messages`)
+    if (response.data.success) {
+      return response.data.data!
+    }
+    throw new Error(response.data.error || '获取会话消息失败')
+  },
+
+  // 创建新会话
+  async createSession(name: string): Promise<ChatSession> {
+    const response = await api.post<ApiResponse<ChatSession>>('/chat/sessions', { name })
+    if (response.data.success) {
+      return response.data.data!
+    }
+    throw new Error(response.data.error || '创建会话失败')
+  },
+
+  // 删除会话
+  async deleteSession(sessionId: string): Promise<void> {
+    const response = await api.delete<ApiResponse<void>>(`/chat/sessions/${sessionId}`)
+    if (!response.data.success) {
+      throw new Error(response.data.error || '删除会话失败')
+    }
   }
 }
 
