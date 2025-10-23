@@ -371,7 +371,7 @@ pub async fn check_ollama_status(request: web::Json<OllamaStatusRequest>) -> imp
     });
 
     match tokio::time::timeout(
-        std::time::Duration::from_secs(5),
+        std::time::Duration::from_secs(120), // 2分钟超时
         client
             .post(&url)
             .header("Content-Type", "application/json")
@@ -1001,7 +1001,7 @@ pub async fn send_system_prompt(
     log::info!("📤 转发系统参数请求到 AI-Core: {} (ID: {})", url, req.ai_core_id);
     
     match tokio::time::timeout(
-        std::time::Duration::from_secs(80),
+        std::time::Duration::from_secs(200),
         client
             .post(&url)
             .header("Content-Type", "application/json")

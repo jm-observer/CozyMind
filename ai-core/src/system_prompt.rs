@@ -84,11 +84,18 @@ pub async fn set_system_prompt(
         uuid::Uuid::new_v4().to_string()
     });
 
-    // log::info!(
-    //     "📝 设定系统参数 - 会话ID: {}, 系统提示: {}",
-    //     session_id,
-    //     &request.system_prompt
-    // );
+    // 截取系统提示的前20个字符用于日志显示
+    let prompt_preview = if request.system_prompt.len() > 20 {
+        &request.system_prompt[..20]
+    } else {
+        &request.system_prompt
+    };
+    
+    log::info!(
+        "📝 设定系统参数 - 会话ID: {}, 系统提示: {}",
+        session_id,
+        prompt_preview
+    );
 
     // 获取会话上下文（如果存在）
     let context = session_store.get_context(&session_id).await;

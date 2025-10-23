@@ -790,7 +790,7 @@ footer {
     border-radius: 8px;
     border-left: 3px solid #28a745;
     line-height: 1.6;
-    white-space: pre-wrap;
+    white-space: pre-line;
 }
 
 .test-stats {
@@ -1397,7 +1397,7 @@ select.form-control {
 }
 
 .chat-message {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     animation: slideIn 0.3s ease;
 }
 
@@ -1448,11 +1448,12 @@ select.form-control {
 .chat-message .message-content {
     display: inline-block;
     max-width: 70%;
-    padding: 8px 12px;
-    border-radius: 12px;
-    line-height: 1.5;
-    white-space: pre-wrap;
+    padding: 6px 10px;
+    border-radius: 8px;
+    line-height: 1.4;
+    white-space: pre-line;
     word-wrap: break-word;
+    margin: 2px 0;
 }
 
 .chat-message-user .message-content {
@@ -1472,7 +1473,7 @@ select.form-control {
     background: #fef3c7;
     color: #92400e;
     font-size: 13px;
-    padding: 8px 12px;
+    padding: 6px 10px;
     max-width: 80%;
 }
 
@@ -1587,9 +1588,9 @@ select.form-control {
 
 /* 响应详情折叠样式 */
 .response-details {
-    margin-top: 8px;
+    margin-top: 4px;
     border-top: 1px solid #e5e7eb;
-    padding-top: 6px;
+    padding-top: 4px;
 }
 
 .details-toggle {
@@ -1597,8 +1598,8 @@ select.form-control {
     border: none;
     color: #667eea;
     cursor: pointer;
-    font-size: 12px;
-    padding: 4px 0;
+    font-size: 11px;
+    padding: 2px 0;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -1615,18 +1616,18 @@ select.form-control {
 }
 
 .details-content {
-    margin-top: 6px;
-    padding: 6px 10px;
+    margin-top: 4px;
+    padding: 4px 8px;
     background: #f9fafb;
-    border-radius: 6px;
-    border-left: 3px solid #e5e7eb;
+    border-radius: 4px;
+    border-left: 2px solid #e5e7eb;
 }
 
 .detail-item {
-    font-size: 12px;
+    font-size: 11px;
     color: #6b7280;
-    margin-bottom: 4px;
-    line-height: 1.4;
+    margin-bottom: 2px;
+    line-height: 1.3;
 }
 
 .detail-item:last-child {
@@ -1634,7 +1635,59 @@ select.form-control {
 }
 
 .response-main {
-    line-height: 1.6;
-    white-space: pre-wrap;
+    line-height: 1.4;
+    white-space: pre-line;
     word-wrap: break-word;
+    margin-bottom: 4px;
+}
+
+/* 模型设定页面的消息内容高度限制 */
+#modelSetupSection .chat-message .message-content {
+    max-height: 200px; /* 限制单个消息内容的最大高度 */
+    overflow-y: auto; /* 长内容时显示滚动条 */
+    word-break: break-word;
+}
+
+/* 系统参数显示的特殊样式 */
+#modelSetupSection .chat-message-system .message-content {
+    max-height: 200px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 8px 12px;
+    white-space: pre-line;
+    word-break: break-word;
+    margin: 2px 0;
+}
+
+/* 响应内容的特殊样式 */
+#modelSetupSection .chat-message-assistant .message-content {
+    max-height: 200px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #e5e7eb;
+    padding: 6px 10px;
+    margin: 2px 0;
+}
+
+/* 模型设定页面的滚动条样式 */
+#modelSetupSection .chat-message .message-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+#modelSetupSection .chat-message .message-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+#modelSetupSection .chat-message .message-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+#modelSetupSection .chat-message .message-content::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
 }

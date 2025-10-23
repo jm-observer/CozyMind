@@ -1642,7 +1642,7 @@ function addModelSetupMessageWithDetails(role, mainContent, details, timestamp, 
     messageDiv.className = 'chat-message chat-message-assistant';
     
     const time = timestamp.toLocaleTimeString('zh-CN');
-    const roleLabel = isSuccess ? '✅ 响应' : '❌ 错误';
+    const roleLabel = '模型';
     
     // 生成唯一ID用于折叠
     const detailsId = `details-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -1818,7 +1818,7 @@ function addModelSetupMessage(role, content, timestamp, isSuccess = null) {
     } else if (role === 'response') {
         messageDiv.className = 'chat-message chat-message-assistant';
         const time = timestamp.toLocaleTimeString('zh-CN');
-        const roleLabel = isSuccess ? '✅ 响应' : '❌ 错误';
+        const roleLabel = '模型';
         messageDiv.innerHTML = `
             <div class="message-header">
                 <span class="message-role">${roleLabel}</span>
@@ -1862,7 +1862,7 @@ function displayModelSetupMessage(role, content, timestamp, isSuccess = null) {
     } else if (role === 'response') {
         messageDiv.className = 'chat-message chat-message-assistant';
         const time = timestamp.toLocaleTimeString('zh-CN');
-        const roleLabel = isSuccess ? '✅ 响应' : '❌ 错误';
+        const roleLabel = '模型';
         messageDiv.innerHTML = `
             <div class="message-header">
                 <span class="message-role">${roleLabel}</span>

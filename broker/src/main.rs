@@ -8,8 +8,8 @@ fn main() {
 
     let builder = tracing_subscriber::fmt()
         .pretty()
-        .with_line_number(true)
-        .with_file(true)
+        .with_line_number(false)
+        .with_file(false)
         .with_thread_ids(false)
         .with_thread_names(false);
 
