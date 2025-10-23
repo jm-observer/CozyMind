@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ApiResponse, AICoreConfig, OllamaConfig, CheckConnectionRequest, CheckConnectionResponse, MessagePreset, AddMessageRequest, UpdateMessageRequest } from '@/types/api'
+import type { ApiResponse, AICoreConfig, OllamaConfig, CheckConnectionRequest, CheckConnectionResponse, MessagePreset, AddMessageRequest, UpdateMessageRequest, SystemPromptRequest, SystemPromptResponse } from '@/types/api'
 
 // 创建 axios 实例
 const api = axios.create({
@@ -173,6 +173,18 @@ export const messageApi = {
     if (!response.data.success) {
       throw new Error(response.data.error || '删除消息预设失败')
     }
+  }
+}
+
+// 模型设定相关 API
+export const modelSetupApi = {
+  // 发送系统参数
+  async sendSystemPrompt(request: SystemPromptRequest): Promise<SystemPromptResponse> {
+    const response = await api.post<ApiResponse<SystemPromptResponse>>('/system-prompt', request)
+    if (response.data.success) {
+      return response.data.data!
+    }
+    throw new Error(response.data.error || '发送系统参数失败')
   }
 }
 

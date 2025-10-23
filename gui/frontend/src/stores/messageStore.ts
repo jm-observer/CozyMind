@@ -33,6 +33,15 @@ export const useMessageStore = defineStore('message', () => {
 
   // 动作
   const loadMessages = async (force = false) => {
+    console.log(`[Message Store] 开始加载消息，强制刷新: ${force}`)
+    console.log(`[Message Store] 当前状态:`, {
+      totalMessages: messagePresets.value.length,
+      systemMessages: systemMessages.value.length,
+      loading: loading.value,
+      lastLoadTime: lastLoadTime.value,
+      cacheExpired: (Date.now() - lastLoadTime.value) > CACHE_DURATION
+    })
+    
     // 检查缓存
     const now = Date.now()
     if (!force && messagePresets.value.length > 0 && (now - lastLoadTime.value) < CACHE_DURATION) {
@@ -40,6 +49,7 @@ export const useMessageStore = defineStore('message', () => {
       return
     }
 
+    console.log('[Message Store] 从后端获取数据...')
     loading.value = true
     error.value = null
     
@@ -48,6 +58,8 @@ export const useMessageStore = defineStore('message', () => {
       messagePresets.value = messages
       lastLoadTime.value = now
       console.log(`[Message Store] 加载了 ${messages.length} 条消息预设`)
+      console.log(`[Message Store] 系统消息数量: ${systemMessages.value.length}`)
+      console.log(`[Message Store] 系统消息详情:`, systemMessages.value)
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载消息预设失败'
       console.error('[Message Store] 加载失败:', err)

@@ -67,3 +67,31 @@ export interface UpdateMessageRequest {
   type: 'system' | 'user' | 'assistant'
   tags?: string
 }
+
+// 系统参数请求
+export interface SystemPromptRequest {
+  ai_core_id: number
+  system_prompt: string
+  session_id?: string
+}
+
+// 系统参数响应
+export interface SystemPromptResponse {
+  success: boolean
+  message?: string
+  error?: string
+  response_time?: number
+}
+
+// 模型设定历史记录
+export interface ModelSetupHistory {
+  id: string
+  timestamp: string
+  ai_core_id: number
+  ai_core_name: string
+  system_prompt: string
+  session_id?: string
+  status: 'success' | 'error'
+  response_time?: number
+  error_message?: string
+}
