@@ -40,3 +40,30 @@ export interface CheckConnectionResponse {
   responseTime?: number
   error?: string
 }
+
+// 消息预设类型
+export interface MessagePreset {
+  id: number
+  title: string
+  content: string
+  type: 'system' | 'user' | 'assistant'
+  tags?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// 添加消息预设请求
+export interface AddMessageRequest {
+  title: string
+  content: string
+  type: 'system' | 'user' | 'assistant'
+  tags?: string
+}
+
+// 更新消息预设请求
+export interface UpdateMessageRequest {
+  title: string
+  content: string
+  type: 'system' | 'user' | 'assistant'
+  tags?: string
+}

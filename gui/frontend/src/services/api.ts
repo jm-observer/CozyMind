@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ApiResponse, AICoreConfig, OllamaConfig, CheckConnectionRequest, CheckConnectionResponse } from '@/types/api'
+import type { ApiResponse, AICoreConfig, OllamaConfig, CheckConnectionRequest, CheckConnectionResponse, MessagePreset, AddMessageRequest, UpdateMessageRequest } from '@/types/api'
 
 // 创建 axios 实例
 const api = axios.create({
@@ -135,6 +135,44 @@ export const ollamaApi = {
       }
     }
     throw new Error(response.data.error || 'Ollama 连接检测失败')
+  }
+}
+
+// 消息预设相关 API
+export const messageApi = {
+  // 获取所有消息预设
+  async getAll(): Promise<MessagePreset[]> {
+    const response = await api.get<ApiResponse<MessagePreset[]>>('/messages')
+    if (response.data.success) {
+      return response.data.data || []
+    }
+    throw new Error(response.data.error || '获取消息预设失败')
+  },
+
+  // 添加消息预设
+  async add(request: AddMessageRequest): Promise<MessagePreset> {
+    const response = await api.post<ApiResponse<MessagePreset>>('/messages', request)
+    if (response.data.success) {
+      return response.data.data!
+    }
+    throw new Error(response.data.error || '添加消息预设失败')
+  },
+
+  // 更新消息预设
+  async update(id: number, request: UpdateMessageRequest): Promise<MessagePreset> {
+    const response = await api.put<ApiResponse<MessagePreset>>(`/messages/${id}`, request)
+    if (response.data.success) {
+      return response.data.data!
+    }
+    throw new Error(response.data.error || '更新消息预设失败')
+  },
+
+  // 删除消息预设
+  async delete(id: number): Promise<void> {
+    const response = await api.delete<ApiResponse<void>>(`/messages/${id}`)
+    if (!response.data.success) {
+      throw new Error(response.data.error || '删除消息预设失败')
+    }
   }
 }
 
