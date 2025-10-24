@@ -20,34 +20,48 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { throttle, getVisibleRange } from '@/utils/performance'
 
 interface Props {
   items: any[]
   itemHeight: number
   containerHeight: number
+  buffer?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  buffer: 5
+})
 
 const containerRef = ref<HTMLElement>()
 const scrollTop = ref(0)
 
-// 计算可见区域
-const visibleStart = computed(() => {
-  return Math.floor(scrollTop.value / props.itemHeight)
-})
+// 节流滚动处理
+const throttledScroll = throttle((event: Event) => {
+  const target = event.target as HTMLElement
+  scrollTop.value = target.scrollTop
+}, 16) // 60fps
 
-const visibleEnd = computed(() => {
-  return Math.min(
-    visibleStart.value + Math.ceil(props.containerHeight / props.itemHeight) + 1,
-    props.items.length
+const handleScroll = (event: Event) => {
+  throttledScroll(event)
+}
+
+// 优化的可见区域计算
+const visibleRange = computed(() => {
+  return getVisibleRange(
+    scrollTop.value,
+    props.containerHeight,
+    props.itemHeight,
+    props.items.length,
+    props.buffer
   )
 })
 
 const visibleItems = computed(() => {
-  return props.items.slice(visibleStart.value, visibleEnd.value).map((item, index) => ({
+  const { start, end } = visibleRange.value
+  return props.items.slice(start, end).map((item, index) => ({
     ...item,
-    index: visibleStart.value + index
+    index: start + index
   }))
 })
 
@@ -56,13 +70,8 @@ const totalHeight = computed(() => {
 })
 
 const offsetY = computed(() => {
-  return visibleStart.value * props.itemHeight
+  return visibleRange.value.start * props.itemHeight
 })
-
-const handleScroll = (event: Event) => {
-  const target = event.target as HTMLElement
-  scrollTop.value = target.scrollTop
-}
 
 onMounted(() => {
   if (containerRef.value) {

@@ -27,7 +27,6 @@ export const useOllamaStore = defineStore('ollama', () => {
     try {
       const configs = await ollamaApi.getAll()
       ollamaConfigs.value = configs
-      console.log(`[Ollama Store] 加载了 ${configs.length} 个 Ollama 配置`)
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载 Ollama 配置失败'
       console.error('[Ollama Store] 加载失败:', err)
@@ -43,7 +42,6 @@ export const useOllamaStore = defineStore('ollama', () => {
     try {
       const newConfig = await ollamaApi.add(config)
       ollamaConfigs.value.push(newConfig)
-      console.log('[Ollama Store] 添加成功:', newConfig)
       return newConfig
     } catch (err) {
       error.value = err instanceof Error ? err.message : '添加 Ollama 配置失败'
@@ -64,7 +62,6 @@ export const useOllamaStore = defineStore('ollama', () => {
       if (index !== -1) {
         ollamaConfigs.value[index] = updatedConfig
       }
-      console.log('[Ollama Store] 更新成功:', updatedConfig)
       return updatedConfig
     } catch (err) {
       error.value = err instanceof Error ? err.message : '更新 Ollama 配置失败'
@@ -83,7 +80,6 @@ export const useOllamaStore = defineStore('ollama', () => {
       await ollamaApi.delete(id)
       ollamaConfigs.value = ollamaConfigs.value.filter(config => config.id !== id)
       lastCheckResults.value.delete(id)
-      console.log('[Ollama Store] 删除成功:', id)
     } catch (err) {
       error.value = err instanceof Error ? err.message : '删除 Ollama 配置失败'
       console.error('[Ollama Store] 删除失败:', err)
@@ -107,8 +103,6 @@ export const useOllamaStore = defineStore('ollama', () => {
       
       // 保存检测结果
       lastCheckResults.value.set(config.id, result)
-      
-      console.log(`[Ollama Store] 连接检测完成: ${config.name} - ${result.status}`)
       return result
     } catch (err) {
       console.error(`[Ollama Store] 连接检测失败: ${config.name}`, err)
@@ -120,7 +114,6 @@ export const useOllamaStore = defineStore('ollama', () => {
     const promises = ollamaConfigs.value.map(config => checkConnection(config))
     try {
       await Promise.allSettled(promises)
-      console.log('[Ollama Store] 所有连接检测完成')
     } catch (err) {
       console.error('[Ollama Store] 批量连接检测失败:', err)
     }

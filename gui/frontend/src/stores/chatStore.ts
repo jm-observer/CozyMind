@@ -42,7 +42,6 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const sessionList = await chatApi.getSessions()
       sessions.value = sessionList
-      console.log('[Chat Store] 加载了', sessionList.length, '个会话')
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载会话失败'
       console.error('[Chat Store] 加载会话失败:', err)
@@ -60,7 +59,6 @@ export const useChatStore = defineStore('chat', () => {
       // 更新当前会话的消息
       messages.value = messages.value.filter(msg => msg.session_id !== sessionId)
       messages.value.push(...sessionMessages)
-      console.log('[Chat Store] 加载了会话', sessionId, '的', sessionMessages.length, '条消息')
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载会话消息失败'
       console.error('[Chat Store] 加载会话消息失败:', err)
@@ -78,7 +76,6 @@ export const useChatStore = defineStore('chat', () => {
       sessions.value.unshift(newSession)
       currentSessionId.value = newSession.id
       messages.value = [] // 清空当前消息
-      console.log('[Chat Store] 创建新会话:', newSession.name)
       return newSession
     } catch (err) {
       error.value = err instanceof Error ? err.message : '创建会话失败'
@@ -102,8 +99,6 @@ export const useChatStore = defineStore('chat', () => {
         currentSessionId.value = null
         messages.value = []
       }
-      
-      console.log('[Chat Store] 删除会话:', sessionId)
     } catch (err) {
       error.value = err instanceof Error ? err.message : '删除会话失败'
       console.error('[Chat Store] 删除会话失败:', err)
@@ -116,7 +111,6 @@ export const useChatStore = defineStore('chat', () => {
   const selectSession = async (sessionId: string) => {
     currentSessionId.value = sessionId
     await loadSessionMessages(sessionId)
-    console.log('[Chat Store] 选择会话:', sessionId)
   }
 
   const sendMessage = async (content: string) => {
@@ -167,8 +161,6 @@ export const useChatStore = defineStore('chat', () => {
       if (!currentSessionId.value) {
         currentSessionId.value = response.session_id
       }
-
-      console.log('[Chat Store] 发送消息成功:', response)
       return response
     } catch (err) {
       // 更新用户消息状态为失败
@@ -185,7 +177,6 @@ export const useChatStore = defineStore('chat', () => {
 
   const clearMessages = () => {
     messages.value = []
-    console.log('[Chat Store] 清空消息')
   }
 
   const clearError = () => {

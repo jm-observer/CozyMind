@@ -33,23 +33,12 @@ export const useMessageStore = defineStore('message', () => {
 
   // 动作
   const loadMessages = async (force = false) => {
-    console.log(`[Message Store] 开始加载消息，强制刷新: ${force}`)
-    console.log(`[Message Store] 当前状态:`, {
-      totalMessages: messagePresets.value.length,
-      systemMessages: systemMessages.value.length,
-      loading: loading.value,
-      lastLoadTime: lastLoadTime.value,
-      cacheExpired: (Date.now() - lastLoadTime.value) > CACHE_DURATION
-    })
-    
     // 检查缓存
     const now = Date.now()
     if (!force && messagePresets.value.length > 0 && (now - lastLoadTime.value) < CACHE_DURATION) {
-      console.log('[Message Store] 使用缓存数据')
       return
     }
 
-    console.log('[Message Store] 从后端获取数据...')
     loading.value = true
     error.value = null
     
@@ -57,9 +46,6 @@ export const useMessageStore = defineStore('message', () => {
       const messages = await messageApi.getAll()
       messagePresets.value = messages
       lastLoadTime.value = now
-      console.log(`[Message Store] 加载了 ${messages.length} 条消息预设`)
-      console.log(`[Message Store] 系统消息数量: ${systemMessages.value.length}`)
-      console.log(`[Message Store] 系统消息详情:`, systemMessages.value)
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载消息预设失败'
       console.error('[Message Store] 加载失败:', err)
@@ -75,7 +61,6 @@ export const useMessageStore = defineStore('message', () => {
     try {
       const newMessage = await messageApi.add(request)
       messagePresets.value.push(newMessage)
-      console.log('[Message Store] 添加成功:', newMessage)
       return newMessage
     } catch (err) {
       error.value = err instanceof Error ? err.message : '添加消息预设失败'
@@ -96,7 +81,6 @@ export const useMessageStore = defineStore('message', () => {
       if (index !== -1) {
         messagePresets.value[index] = updatedMessage
       }
-      console.log('[Message Store] 更新成功:', updatedMessage)
       return updatedMessage
     } catch (err) {
       error.value = err instanceof Error ? err.message : '更新消息预设失败'
@@ -117,7 +101,6 @@ export const useMessageStore = defineStore('message', () => {
       if (selectedMessage.value?.id === id) {
         selectedMessage.value = null
       }
-      console.log('[Message Store] 删除成功:', id)
     } catch (err) {
       error.value = err instanceof Error ? err.message : '删除消息预设失败'
       console.error('[Message Store] 删除失败:', err)
@@ -129,7 +112,6 @@ export const useMessageStore = defineStore('message', () => {
 
   const selectMessage = (message: MessagePreset | null) => {
     selectedMessage.value = message
-    console.log('[Message Store] 选择消息:', message?.title || '无')
   }
 
   const getMessageById = (id: number) => {

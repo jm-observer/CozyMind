@@ -45,53 +45,19 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
   })
 
   const charCount = computed(() => {
-    const count = systemPrompt.value.length
-    console.log('[Model Setup Store] charCount 计算:', {
-      systemPrompt: systemPrompt.value,
-      length: count,
-      timestamp: new Date().toISOString()
-    })
-    return count
+    return systemPrompt.value.length
   })
 
   const canSend = computed(() => {
     const hasAiCore = !!selectedAiCoreId.value
     const hasPrompt = systemPrompt.value.trim().length > 0
     const notLoading = !loading.value
-    const result = hasAiCore && hasPrompt && notLoading
-    
-    console.log('[Model Setup Store] canSend 检查:', {
-      selectedAiCoreId: selectedAiCoreId.value,
-      hasAiCore,
-      systemPrompt: systemPrompt.value,
-      systemPromptLength: systemPrompt.value.length,
-      systemPromptTrimmed: systemPrompt.value.trim(),
-      hasPrompt,
-      loading: loading.value,
-      notLoading,
-      result,
-      timestamp: new Date().toISOString()
-    })
-    
-    return result
+    return hasAiCore && hasPrompt && notLoading
   })
 
   // 动作
   const setSystemPrompt = (prompt: string) => {
-    console.log('[Model Setup Store] setSystemPrompt 调用:', {
-      newPrompt: prompt,
-      oldPrompt: systemPrompt.value,
-      promptLength: prompt.length,
-      timestamp: new Date().toISOString()
-    })
-    
     systemPrompt.value = prompt
-    
-    console.log('[Model Setup Store] systemPrompt 已更新:', {
-      currentValue: systemPrompt.value,
-      canSend: canSend.value,
-      charCount: charCount.value
-    })
   }
 
   const setSelectedAiCore = (id: number | null) => {
@@ -112,7 +78,6 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
   }
 
   const sendSystemPrompt = async () => {
-    console.log('[Model Setup Store] 发送系统参数:', systemPrompt.value, 'canSend:', canSend.value)
     if (!canSend.value) {
       // 弹窗提示用户
       if (typeof window !== 'undefined' && (window as any).ElMessage) {
@@ -121,7 +86,6 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
       return null
     }
 
-    console.log('[Model Setup Store] 开始发送系统参数...')
     loading.value = true
     error.value = null
 
@@ -132,7 +96,6 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
         session_id: sessionId.value || undefined
       }
 
-      console.log('[Model Setup Store] 请求参数:', request)
       const startTime = Date.now()
       
       // 直接调用 API
@@ -140,7 +103,6 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
       const ollamaResponse = response.data as OllamaResponse
       
       const responseTime = Date.now() - startTime
-      console.log('[Model Setup Store] 发送成功，响应时间:', responseTime + 'ms')
 
       // 记录成功历史
       const historyItem: ModelSetupHistory = {
@@ -158,8 +120,6 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
       stats.value.sent++
       stats.value.success++
 
-      console.log('[Model Setup Store] 系统参数发送成功:', ollamaResponse)
-      
       // 显示成功消息
       if (typeof window !== 'undefined' && (window as any).ElMessage) {
         (window as any).ElMessage.success('系统参数发送成功')
@@ -198,18 +158,11 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
   }
 
   const selectMessageForPrompt = (message: any) => {
-    console.log('[Model Setup Store] 选择消息到输入框:', message.title, message.content)
-    console.log('[Model Setup Store] 设置前的 systemPrompt.value:', systemPrompt.value)
-    
     systemPrompt.value = message.content
-    
-    console.log('[Model Setup Store] 设置后的 systemPrompt.value:', systemPrompt.value)
   }
 
   const selectMessageAndSend = async (message: any) => {
-    console.log('[Model Setup Store] 选择消息并发送:', message.title, message.content)
     systemPrompt.value = message.content
-    console.log('[Model Setup Store] 设置系统参数后:', systemPrompt.value)
     
     try {
       await sendSystemPrompt()
@@ -230,7 +183,6 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
       if (onlineCores.length > 0) {
         const firstOnlineCore = onlineCores[0]
         selectedAiCoreId.value = firstOnlineCore.id
-        console.log('[Model Setup Store] 自动选择AI-Core服务:', firstOnlineCore.name)
       }
     }
   }

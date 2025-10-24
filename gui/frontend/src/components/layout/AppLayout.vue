@@ -6,9 +6,13 @@
     <!-- 导航栏 -->
     <AppNav />
     
-    <!-- 主内容区域 -->
+    <!-- 主内容区域 - 使用 keep-alive 缓存组件 -->
     <main class="main-content">
-      <router-view />
+      <router-view v-slot="{ Component, route }">
+        <keep-alive :include="['ServicesView', 'MessagesView', 'ModelSetupView', 'ChatView']">
+          <component :is="Component" :key="route.fullPath" />
+        </keep-alive>
+      </router-view>
     </main>
   </div>
 </template>

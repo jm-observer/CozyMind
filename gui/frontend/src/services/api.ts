@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { apiCache, generateCacheKey } from '@/utils/apiCache'
+import { debounce, throttle } from '@/utils/performance'
 import type { 
   ApiResponse, 
   AICoreConfig, 
@@ -25,7 +27,6 @@ const api = axios.create({
 // 请求拦截器
 api.interceptors.request.use(
   (config) => {
-    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`)
     return config
   },
   (error) => {
@@ -37,7 +38,6 @@ api.interceptors.request.use(
 // 响应拦截器
 api.interceptors.response.use(
   (response) => {
-    console.log(`[API] Response:`, response.data)
     return response
   },
   (error) => {
@@ -48,11 +48,21 @@ api.interceptors.response.use(
 
 // AI-Core 相关 API
 export const aiCoreApi = {
-  // 获取所有 AI-Core 配置
+  // 获取所有 AI-Core 配置 - 添加缓存
   async getAll(): Promise<AICoreConfig[]> {
+    const cacheKey = generateCacheKey('ai-cores')
+    
+    // 检查缓存
+    if (apiCache.has(cacheKey)) {
+      return apiCache.get(cacheKey)!
+    }
+    
     const response = await api.get<ApiResponse<AICoreConfig[]>>('/ai-cores')
     if (response.data.success) {
-      return response.data.data || []
+      const data = response.data.data || []
+      // 缓存5分钟
+      apiCache.set(cacheKey, data, 5 * 60 * 1000)
+      return data
     }
     throw new Error(response.data.error || '获取 AI-Core 配置失败')
   },

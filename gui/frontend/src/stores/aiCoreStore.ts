@@ -27,7 +27,6 @@ export const useAICoreStore = defineStore('aiCore', () => {
     try {
       const cores = await aiCoreApi.getAll()
       aiCores.value = cores
-      console.log(`[AI-Core Store] 加载了 ${cores.length} 个 AI-Core 配置`)
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载 AI-Core 配置失败'
       console.error('[AI-Core Store] 加载失败:', err)
@@ -43,7 +42,6 @@ export const useAICoreStore = defineStore('aiCore', () => {
     try {
       const newCore = await aiCoreApi.add(config)
       aiCores.value.push(newCore)
-      console.log('[AI-Core Store] 添加成功:', newCore)
       return newCore
     } catch (err) {
       error.value = err instanceof Error ? err.message : '添加 AI-Core 配置失败'
@@ -64,7 +62,6 @@ export const useAICoreStore = defineStore('aiCore', () => {
       if (index !== -1) {
         aiCores.value[index] = updatedCore
       }
-      console.log('[AI-Core Store] 更新成功:', updatedCore)
       return updatedCore
     } catch (err) {
       error.value = err instanceof Error ? err.message : '更新 AI-Core 配置失败'
@@ -83,7 +80,6 @@ export const useAICoreStore = defineStore('aiCore', () => {
       await aiCoreApi.delete(id)
       aiCores.value = aiCores.value.filter(core => core.id !== id)
       lastCheckResults.value.delete(id)
-      console.log('[AI-Core Store] 删除成功:', id)
     } catch (err) {
       error.value = err instanceof Error ? err.message : '删除 AI-Core 配置失败'
       console.error('[AI-Core Store] 删除失败:', err)
@@ -107,8 +103,6 @@ export const useAICoreStore = defineStore('aiCore', () => {
       
       // 保存检测结果
       lastCheckResults.value.set(core.id, result)
-      
-      console.log(`[AI-Core Store] 连接检测完成: ${core.name} - ${result.status}`)
       return result
     } catch (err) {
       console.error(`[AI-Core Store] 连接检测失败: ${core.name}`, err)
@@ -120,7 +114,6 @@ export const useAICoreStore = defineStore('aiCore', () => {
     const promises = aiCores.value.map(core => checkConnection(core))
     try {
       await Promise.allSettled(promises)
-      console.log('[AI-Core Store] 所有连接检测完成')
     } catch (err) {
       console.error('[AI-Core Store] 批量连接检测失败:', err)
     }

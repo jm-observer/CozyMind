@@ -15,15 +15,16 @@
 
            <!-- 消息历史显示 -->
            <div class="chat-messages" ref="messagesContainer">
-             <div v-if="history.length === 0 && messages.length === 0" class="chat-welcome">
+             <div v-if="history.length === 0 && visibleMessages.length === 0" class="chat-welcome">
                <p>⚙️ 欢迎使用模型系统参数设定</p>
                <p>配置 AI 模型的系统提示词，定义模型的行为和角色</p>
              </div>
 
              <!-- 对话消息 -->
              <div
-               v-for="message in messages"
+               v-for="message in visibleMessages"
                :key="message.id"
+               v-memo="[message.id, message.content, message.status, message.role]"
                class="message-item"
                :class="{
                  'message-user': message.role === 'user',
@@ -230,13 +231,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch, defineComponent } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { Search, Loading } from '@element-plus/icons-vue'
 import { useModelSetupStore } from '@/stores/modelSetupStore'
 import { useMessageStore } from '@/stores/messageStore'
 import { useAICoreStore } from '@/stores/aiCoreStore'
+import { debounce, throttle, batchUpdate } from '@/utils/performance'
+import { apiCache, generateCacheKey } from '@/utils/apiCache'
 import type { MessagePreset } from '@/types/api'
 
 // 使用 Pinia store
@@ -247,8 +250,29 @@ const aiCoreStore = useAICoreStore()
 // 本地状态
 const messageSelectorVisible = ref(false)
 const messageSearchQuery = ref('')
+const debouncedSearchQuery = ref('')
 const messagesContainer = ref<HTMLElement>()
 const localSystemPrompt = ref('') // 本地输入框的值
+
+// 性能优化：限制渲染的消息数量
+const MAX_VISIBLE_MESSAGES = 50
+const visibleMessages = computed(() => {
+  const allMessages = messages.value
+  if (allMessages.length <= MAX_VISIBLE_MESSAGES) {
+    return allMessages
+  }
+  // 只显示最新的消息
+  return allMessages.slice(-MAX_VISIBLE_MESSAGES)
+})
+
+// 防抖搜索 - 使用工具函数
+const debouncedSearch = debounce((query: string) => {
+  debouncedSearchQuery.value = query
+}, 300)
+
+watch(messageSearchQuery, (newQuery) => {
+  debouncedSearch(newQuery)
+})
 
 // 计算属性
 const {
@@ -273,15 +297,6 @@ const localCanSend = computed(() => {
   const notLoading = !loading.value
   const result = hasAiCore && hasPrompt && notLoading
   
-  console.log('[ModelSetup] localCanSend 检查:', {
-    selectedAiCoreId: selectedAiCoreId.value,
-    hasAiCore,
-    localSystemPrompt: localSystemPrompt.value,
-    hasPrompt,
-    loading: loading.value,
-    notLoading,
-    result
-  })
   
   return result
 })
@@ -291,45 +306,29 @@ const systemMessages = computed(() => {
   return messageStore.systemMessages || []
 })
 
-// 筛选后的系统消息
+// 筛选后的系统消息 - 使用防抖搜索优化性能
 const filteredSystemMessages = computed(() => {
   const messages = systemMessages.value || []
-  console.log('[ModelSetup] 筛选前的系统消息:', messages)
-  console.log('[ModelSetup] 筛选前系统消息数量:', messages.length)
-  console.log('[ModelSetup] 搜索查询:', messageSearchQuery.value)
   
-  if (!messageSearchQuery.value.trim()) {
-    console.log('[ModelSetup] 无搜索条件，返回所有系统消息')
+  if (!debouncedSearchQuery.value.trim()) {
     return messages
   }
   
-  const query = messageSearchQuery.value.toLowerCase()
-  const filtered = messages.filter((msg: MessagePreset) => 
+  const query = debouncedSearchQuery.value.toLowerCase()
+  return messages.filter((msg: MessagePreset) => 
     msg.title.toLowerCase().includes(query) ||
     msg.content.toLowerCase().includes(query) ||
     (msg.tags && msg.tags.toLowerCase().includes(query))
   )
-  
-  console.log('[ModelSetup] 筛选后的系统消息数量:', filtered.length)
-  console.log('[ModelSetup] 筛选后的系统消息:', filtered)
-  return filtered
 })
 
 // 方法
 const loadData = async () => {
-  console.log('[ModelSetup] 开始加载数据')
   try {
     await Promise.all([
       modelSetupStore.loadAiCores(),
       messageStore.loadMessages()
     ])
-    
-    console.log('[ModelSetup] 数据加载完成:', {
-      selectedAiCoreId: selectedAiCoreId.value,
-      aiCoresCount: aiCoreStore.aiCores.length,
-      onlineCoresCount: aiCoreStore.aiCores.filter(core => core.status === 'online').length,
-      canSend: canSend.value
-    })
   } catch (err) {
     console.error('[ModelSetup] 加载数据失败:', err)
     ElMessage.error('加载数据失败')
@@ -348,7 +347,6 @@ const sendSystemPrompt = async () => {
   
   // 添加到消息列表
   messages.value.push(userMessage)
-  console.log('[ModelSetup] 添加用户消息后，消息数量:', messages.value.length)
   
   // 滚动到底部
   scrollToBottom()
@@ -366,7 +364,6 @@ const sendSystemPrompt = async () => {
     }
     messages.value[messageIndex].status = 'sent'
     localSystemPrompt.value = ''
-    console.log('[ModelSetup] 系统参数发送成功', response)
     // 添加AI回复消息，使用后端返回的消息
     const aiMessage = {
       id: (Date.now() + 1).toString(),
@@ -377,7 +374,6 @@ const sendSystemPrompt = async () => {
     }
     messages.value.push(aiMessage)
     
-    console.log('[ModelSetup] 发送完成，总消息数:', messages.value.length)
     scrollToBottom()
     
     ElMessage.success('系统参数发送成功')
@@ -405,60 +401,29 @@ const clearHistory = () => {
 }
 
 const showMessageSelector = async () => {
-  console.log('[ModelSetup] 开始显示消息选择器')
-  console.log('[ModelSetup] 当前消息存储状态:', {
-    totalMessages: messageStore.messagePresets?.length || 0,
-    systemMessages: messageStore.systemMessages?.length || 0,
-    loading: messageStore.loading
-  })
   
   // 强制重新加载消息数据
   await messageStore.loadMessages(true)
   
-  console.log('[ModelSetup] 重新加载后的状态:', {
-    totalMessages: messageStore.messagePresets?.length || 0,
-    systemMessages: messageStore.systemMessages?.length || 0,
-    systemMessagesData: messageStore.systemMessages
-  })
   
-  console.log('[ModelSetup] 系统消息数量:', systemMessages.value?.length || 0)
-  console.log('[ModelSetup] 所有消息:', messageStore.messagePresets)
   
   // 强制触发计算属性
-  console.log('[ModelSetup] 强制触发筛选计算属性...')
   const filtered = filteredSystemMessages.value
-  console.log('[ModelSetup] 筛选结果:', filtered)
   
   messageSelectorVisible.value = true
-  console.log('[ModelSetup] 消息选择器已显示')
 }
 
 const showMessageSelectorAndSend = async () => {
-  console.log('[ModelSetup] 开始显示消息选择器(选择并发送)')
-  console.log('[ModelSetup] 当前消息存储状态:', {
-    totalMessages: messageStore.messagePresets?.length || 0,
-    systemMessages: messageStore.systemMessages?.length || 0,
-    loading: messageStore.loading
-  })
   
   // 强制重新加载消息数据
   await messageStore.loadMessages(true)
   
-  console.log('[ModelSetup] 重新加载后的状态:', {
-    totalMessages: messageStore.messagePresets?.length || 0,
-    systemMessages: messageStore.systemMessages?.length || 0,
-    systemMessagesData: messageStore.systemMessages
-  })
   
-  console.log('[ModelSetup] 系统消息数量:', systemMessages.value?.length || 0)
   
   // 强制触发计算属性
-  console.log('[ModelSetup] 强制触发筛选计算属性...')
   const filtered = filteredSystemMessages.value
-  console.log('[ModelSetup] 筛选结果:', filtered)
   
   messageSelectorVisible.value = true
-  console.log('[ModelSetup] 消息选择器已显示(选择并发送模式)')
 }
 
 const closeMessageSelector = () => {
@@ -467,26 +432,20 @@ const closeMessageSelector = () => {
 }
 
 const selectMessage = (message: MessagePreset) => {
-  console.log('[ModelSetup] 开始选择消息:', message.title, message.content)
   
   // 直接更新本地输入框
   localSystemPrompt.value = message.content
-  console.log('[ModelSetup] 本地输入框已更新:', localSystemPrompt.value)
   
   closeMessageSelector()
-  console.log('[ModelSetup] 消息选择完成，选择器已关闭')
 }
 
 const selectMessageAndSend = async (message: MessagePreset) => {
-  console.log('[ModelSetup] 开始选择并发送消息:', message.title, message.content)
   
   // 立即关闭选择框
   closeMessageSelector()
-  console.log('[ModelSetup] 选择器已关闭')
   
   // 更新本地输入框
   localSystemPrompt.value = message.content
-  console.log('[ModelSetup] 本地输入框已更新:', localSystemPrompt.value)
   
   
   // 显示用户消息（发送中状态）
@@ -500,7 +459,6 @@ const selectMessageAndSend = async (message: MessagePreset) => {
   
   // 添加到消息列表
   messages.value.push(userMessage)
-  console.log('[ModelSetup] 添加用户消息后，消息数量:', messages.value.length)
   
   // 滚动到底部
   scrollToBottom()
@@ -525,7 +483,6 @@ const selectMessageAndSend = async (message: MessagePreset) => {
     const msgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
     if (msgIndex !== -1) {
       messages.value[msgIndex].status = 'sent'
-      console.log('[ModelSetup] 用户消息状态更新为已发送')
     }
     
     // 显示AI回复消息，使用后端返回的消息
@@ -538,7 +495,6 @@ const selectMessageAndSend = async (message: MessagePreset) => {
     }
     
     messages.value.push(aiMessage)
-    console.log('[ModelSetup] 添加AI回复消息后，消息数量:', messages.value.length)
     
     scrollToBottom()
   } catch (err) {
@@ -546,7 +502,6 @@ const selectMessageAndSend = async (message: MessagePreset) => {
     const msgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
     if (msgIndex !== -1) {
       messages.value[msgIndex].status = 'failed'
-      console.log('[ModelSetup] 用户消息状态更新为失败')
     }
     
     // 显示错误消息
@@ -559,7 +514,6 @@ const selectMessageAndSend = async (message: MessagePreset) => {
     }
     
     messages.value.push(errorMessage)
-    console.log('[ModelSetup] 添加错误消息后，消息数量:', messages.value.length)
     
     scrollToBottom()
   }
@@ -577,11 +531,16 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 
+// 节流滚动函数
+const throttledScrollToBottom = throttle(() => {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}, 100)
+
 const scrollToBottom = () => {
   nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
+    batchUpdate(throttledScrollToBottom)
   })
 }
 
@@ -691,7 +650,7 @@ onMounted(() => {
   min-width: 300px;
   border-left: 4px solid #e5e7eb;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* 响应式设计 */
@@ -990,7 +949,7 @@ onMounted(() => {
   word-wrap: break-word;
   position: relative; /* For arrow */
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  transition: width 0.2s ease;
+  transition: max-width 0.2s ease;
 
 }
 .message-user .message-content {
@@ -1135,7 +1094,7 @@ onMounted(() => {
   padding: 12px;
   margin-bottom: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 .message-option:hover {
