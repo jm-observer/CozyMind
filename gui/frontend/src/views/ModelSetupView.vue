@@ -19,38 +19,6 @@
                <p>⚙️ 欢迎使用模型系统参数设定</p>
                <p>配置 AI 模型的系统提示词，定义模型的行为和角色</p>
              </div>
-             
-             <!-- 历史记录 -->
-             <div
-               v-for="item in history"
-               :key="item.id"
-               class="history-item"
-               :class="`history-${item.status}`"
-             >
-               <div class="history-header">
-                 <div class="history-meta">
-                   <span class="history-time">{{ formatTime(item.timestamp) }}</span>
-                   <span class="history-service">{{ item.ai_core_name }}</span>
-                   <span class="history-status" :class="`status-${item.status}`">
-                     {{ item.status === 'success' ? '✅ 成功' : '❌ 失败' }}
-                   </span>
-                 </div>
-               </div>
-               
-               <div class="history-content">
-                 <div class="system-prompt-card">
-                   <div class="system-prompt-header">
-                     <strong>系统参数:</strong>
-                   </div>
-                   <div class="system-prompt-text">
-                     {{ item.system_prompt }}
-                   </div>
-                   <div class="response-time">
-                     响应时间: {{ item.response_time }}ms
-                   </div>
-                 </div>
-               </div>
-             </div>
 
              <!-- 对话消息 -->
              <div
@@ -64,7 +32,6 @@
              >
                <div 
                  class="message-content"
-                 :class="getMessageLengthClass(message.content)"
                >
                  <div class="message-header">
                    <span class="message-role">
@@ -285,11 +252,9 @@ const localSystemPrompt = ref('') // 本地输入框的值
 
 // 计算属性
 const {
-  systemPrompt,
   selectedAiCoreId,
   sessionId,
   loading,
-  error,
   history,
   messages,
   stats,
@@ -306,7 +271,19 @@ const localCanSend = computed(() => {
   const hasAiCore = !!selectedAiCoreId.value
   const hasPrompt = localSystemPrompt.value.trim().length > 0
   const notLoading = !loading.value
-  return hasAiCore && hasPrompt && notLoading
+  const result = hasAiCore && hasPrompt && notLoading
+  
+  console.log('[ModelSetup] localCanSend 检查:', {
+    selectedAiCoreId: selectedAiCoreId.value,
+    hasAiCore,
+    localSystemPrompt: localSystemPrompt.value,
+    hasPrompt,
+    loading: loading.value,
+    notLoading,
+    result
+  })
+  
+  return result
 })
 
 // 直接获取 systemMessages，避免解构问题
@@ -379,7 +356,19 @@ const sendSystemPrompt = async () => {
   try {
     // 发送前先更新 store 中的 systemPrompt
     modelSetupStore.setSystemPrompt(localSystemPrompt.value)
-    await modelSetupStore.sendSystemPrompt()
+    const response = await modelSetupStore.sendSystemPrompt()
+    
+    // 如果返回 null，说明发送条件不满足，直接返回
+    if (!response) {
+      // 移除用户消息，因为发送失败
+      const messageIndex = messages.value.findIndex(m => m.id === userMessage.id)
+      if (messageIndex !== -1) {
+        messages.value.splice(messageIndex, 1)
+      }
+      return
+    }
+    
+    localSystemPrompt.value = ''
     
     // 更新消息状态为已发送
     const messageIndex = messages.value.findIndex(m => m.id === userMessage.id)
@@ -387,10 +376,10 @@ const sendSystemPrompt = async () => {
       messages.value[messageIndex].status = 'sent'
     }
     
-    // 添加AI回复消息
+    // 添加AI回复消息，使用后端返回的消息
     const aiMessage = {
       id: (Date.now() + 1).toString(),
-      content: '系统参数已发送成功',
+      content: response.message || '系统参数已发送成功',
       role: 'assistant' as const,
       timestamp: new Date().toISOString(),
       status: 'sent' as const
@@ -529,7 +518,17 @@ const selectMessageAndSend = async (message: MessagePreset) => {
   try {
     // 发送前更新 store 中的 systemPrompt
     modelSetupStore.setSystemPrompt(message.content)
-    await modelSetupStore.sendSystemPrompt()
+    const response = await modelSetupStore.sendSystemPrompt()
+    
+    // 如果返回 null，说明发送条件不满足，直接返回
+    if (!response) {
+      // 移除用户消息，因为发送失败
+      const msgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
+      if (msgIndex !== -1) {
+        messages.value.splice(msgIndex, 1)
+      }
+      return
+    }
     
     // 更新用户消息状态为已发送
     const msgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
@@ -538,10 +537,10 @@ const selectMessageAndSend = async (message: MessagePreset) => {
       console.log('[ModelSetup] 用户消息状态更新为已发送')
     }
     
-    // 显示AI回复消息
+    // 显示AI回复消息，使用后端返回的消息
     const aiMessage = {
       id: (Date.now() + 1).toString(),
-      content: '系统参数已成功发送到AI-Core服务',
+      content: response.message || '系统参数已成功发送到AI-Core服务',
       role: 'assistant' as const,
       timestamp: new Date().toISOString(),
       status: 'sent' as const
@@ -595,13 +594,13 @@ const scrollToBottom = () => {
   })
 }
 
-const getStatusText = (status: string) => {
+const getStatusText = (status: string | undefined) => {
   const statusMap = {
     'online': '在线',
     'offline': '离线',
     'checking': '检测中'
   }
-  return statusMap[status as keyof typeof statusMap] || status
+  return statusMap[status as keyof typeof statusMap] || status || '未知'
 }
 
 const truncateText = (text: string, maxLength: number) => {
@@ -613,16 +612,6 @@ const formatTime = (timestamp: string) => {
   return new Date(timestamp).toLocaleString()
 }
 
-const getMessageLengthClass = (content: string) => {
-  const length = content.length
-  if (length <= 20) {
-    return 'message-short'
-  } else if (length <= 80) {
-    return 'message-medium'
-  } else {
-    return 'message-long'
-  }
-}
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString()
@@ -683,7 +672,7 @@ onMounted(() => {
 
 .chat-messages {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
   margin-bottom: 20px;
   padding: 20px;
   border: 1px solid #e5e7eb;
@@ -1005,35 +994,14 @@ onMounted(() => {
   border-radius: 8px;
   border: 1px solid #e5e7eb;
   max-width: 70%;
-  min-width: 120px;
+  min-width: 200px;
   width: fit-content;
   word-wrap: break-word;
   position: relative; /* For arrow */
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   transition: width 0.2s ease;
-}
 
-/* 根据内容长度调整宽度 */
-.message-content.message-short {
-  max-width: 30%;
-  min-width: 80px;
 }
-
-.message-content.message-medium {
-  max-width: 50%;
-  min-width: 100px;
-}
-
-.message-content.message-long {
-  max-width: 70%;
-  min-width: 120px;
-}
-
-/* 超短消息特殊处理 */
-.message-content.message-short {
-  max-width: 25%;
-}
-
 .message-user .message-content {
   background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
   border-color: #93c5fd;

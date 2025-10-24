@@ -20,7 +20,7 @@ pub struct SetSystemPromptRequest {
 #[derive(Debug, Clone, Serialize)]
 pub struct SetSystemPromptResponse {
     pub status: String,
-    pub message: String,
+    pub message: OllamaResponse,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
 }
@@ -111,12 +111,12 @@ pub async fn set_system_prompt(
     // 构造 Ollama 请求
     let ollama_request = OllamaSystemRequest {
         model,
-        prompt: "确认".to_string(), // 简单的确认消息
+        prompt: prompt_preview.to_string(), // 简单的确认消息
         system: request.system_prompt.clone(),
         stream: false,
         context,
     };
-    // log::info!("Ollama 请求: {:?}", ollama_request);
+    log::info!("Ollama 请求: {:?}", ollama_request);
     // 发送 HTTP 请求到 Ollama
     let client = reqwest::Client::new();
     match client
@@ -127,13 +127,13 @@ pub async fn set_system_prompt(
     {
         Ok(response) => {
             let response = response.text().await.unwrap();
-            // log::info!("Ollama 响应: {}", response);
+            log::info!("Ollama 响应: {}", response);
 
             match serde_json::from_str::<OllamaResponse>(&response) {
                 Ok(ollama_response) => {
                     // 记录性能统计信息
                     let stats = ollama_response.performance_stats();
-                    log::info!("✅ Ollama 响应成功: {}", &ollama_response.response);
+                    log::info!("✅ Ollama 响应成功: {:?}", ollama_response);
                     log::info!("📊 性能统计: {}", stats.format_summary());
                     
                     // 如果有思考过程，记录它
@@ -142,20 +142,16 @@ pub async fn set_system_prompt(
                     }
 
                     // 保存会话上下文
-                    if let Some(new_context) = ollama_response.context {
+                    if let Some(new_context) = &ollama_response.context {
                         session_store
-                            .save_context(session_id.clone(), new_context)
+                            .save_context(session_id.clone(), new_context.clone().to_vec())
                             .await;
                         log::debug!("💾 保存会话上下文 - 会话ID: {}", session_id);
                     }
 
                     HttpResponse::Ok().json(SetSystemPromptResponse {
                         status: "success".to_string(),
-                        message: format!(
-                            "系统参数已设定，Ollama 响应: {} | 性能: {}",
-                            ollama_response.response,
-                            stats.format_summary()
-                        ),
+                        message: ollama_response,
                         session_id: Some(session_id),
                     })
                 }

@@ -1017,7 +1017,7 @@ pub async fn send_system_prompt(
             // 先获取响应文本
             match response.text().await {
                 Ok(text) => {
-                    log::debug!("📄 响应内容: {}", text);
+                    log::info!("📄 响应内容: {}", text);
                     
                     // 尝试解析为 JSON
                     match serde_json::from_str::<serde_json::Value>(&text) {

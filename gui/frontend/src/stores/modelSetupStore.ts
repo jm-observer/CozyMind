@@ -108,7 +108,13 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
 
   const sendSystemPrompt = async () => {
     console.log('[Model Setup Store] 发送系统参数:', systemPrompt.value, 'canSend:', canSend.value)
-    if (!canSend.value) return
+    if (!canSend.value) {
+      // 弹窗提示用户
+      if (typeof window !== 'undefined' && (window as any).ElMessage) {
+        (window as any).ElMessage.warning('请选择AI-Core服务并输入系统参数')
+      }
+      return null
+    }
 
     console.log('[Model Setup Store] 开始发送系统参数...')
     loading.value = true
