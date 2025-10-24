@@ -197,15 +197,20 @@ export const modelSetupApi = {
   async sendSystemPrompt(request: SystemPromptRequest): Promise<SystemPromptResponse> {
     const response = await api.post('/system-prompt', request)
     
-    // 后端直接返回响应数据，不是标准的 ApiResponse 格式
-    if (response.data.status === 'success') {
+    // 后端现在直接返回文本，需要解析成 OllamaResponse
+    try {
+      const ollamaResponse = response.data as any // 直接是 OllamaResponse 对象
+      
+      // 构造 SystemPromptResponse
       return {
-        message: response.data.message,
-        session_id: response.data.session_id,
-        status: response.data.status
+        message: ollamaResponse.response || '系统参数已设定',
+        session_id: request.session_id || 'default',
+        status: 'success'
       }
+    } catch (error) {
+      console.error('解析 OllamaResponse 失败:', error)
+      throw new Error('解析响应失败')
     }
-    throw new Error(response.data.error || '发送系统参数失败')
   }
 }
 

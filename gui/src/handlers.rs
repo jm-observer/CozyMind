@@ -1019,21 +1019,11 @@ pub async fn send_system_prompt(
                 Ok(text) => {
                     log::info!("📄 响应内容: {}", text);
                     
-                    // 尝试解析为 JSON
-                    match serde_json::from_str::<serde_json::Value>(&text) {
-                        Ok(data) => {
-                            log::info!("✅ 成功解析 AI-Core 响应");
-                            HttpResponse::Ok().json(data)
-                        }
-                        Err(e) => {
-                            log::error!("❌ 解析 JSON 失败: {}, 原始响应: {}", e, text);
-                            HttpResponse::InternalServerError().json(serde_json::json!({
-                                "success": false,
-                                "error": format!("解析响应失败: {}", e),
-                                "raw_response": text
-                            }))
-                        }
-                    }
+                    // 直接返回文本给前端，让前端解析成 OllamaResponse
+                    log::info!("✅ 成功获取 AI-Core 响应，直接返回给前端");
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body(text)
                 }
                 Err(e) => {
                     log::error!("❌ 读取响应文本失败: {}", e);
