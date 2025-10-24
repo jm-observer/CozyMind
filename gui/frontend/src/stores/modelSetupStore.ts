@@ -1,9 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { modelSetupApi } from '@/services/api'
+import axios from 'axios'
 import { useAICoreStore } from './aiCoreStore'
 import { useMessageStore } from './messageStore'
-import type { SystemPromptRequest, SystemPromptResponse, ModelSetupHistory } from '@/types/api'
+import type { SystemPromptRequest, ModelSetupHistory, OllamaResponse } from '@/types/api'
+
+// 创建 axios 实例
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 130000, // 2分钟10秒
+})
 
 export const useModelSetupStore = defineStore('modelSetup', () => {
   // 状态
@@ -83,7 +89,6 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
     
     console.log('[Model Setup Store] systemPrompt 已更新:', {
       currentValue: systemPrompt.value,
-      isReactive: systemPrompt.__v_isRef,
       canSend: canSend.value,
       charCount: charCount.value
     })
@@ -129,7 +134,11 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
 
       console.log('[Model Setup Store] 请求参数:', request)
       const startTime = Date.now()
-      const response = await modelSetupApi.sendSystemPrompt(request)
+      
+      // 直接调用 API
+      const response = await api.post('/system-prompt', request)
+      const ollamaResponse = response.data as OllamaResponse
+      
       const responseTime = Date.now() - startTime
       console.log('[Model Setup Store] 发送成功，响应时间:', responseTime + 'ms')
 
@@ -149,14 +158,14 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
       stats.value.sent++
       stats.value.success++
 
-      console.log('[Model Setup Store] 系统参数发送成功:', response)
+      console.log('[Model Setup Store] 系统参数发送成功:', ollamaResponse)
       
       // 显示成功消息
       if (typeof window !== 'undefined' && (window as any).ElMessage) {
         (window as any).ElMessage.success('系统参数发送成功')
       }
       
-      return response
+      return ollamaResponse
     } catch (err) {
       // 记录失败历史
       const historyItem: ModelSetupHistory = {
@@ -195,8 +204,6 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
     systemPrompt.value = message.content
     
     console.log('[Model Setup Store] 设置后的 systemPrompt.value:', systemPrompt.value)
-    console.log('[Model Setup Store] systemPrompt 是否为响应式:', systemPrompt)
-    console.log('[Model Setup Store] systemPrompt 的 __v_isRef:', systemPrompt.__v_isRef)
   }
 
   const selectMessageAndSend = async (message: any) => {

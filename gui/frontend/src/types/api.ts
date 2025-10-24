@@ -77,7 +77,7 @@ export interface SystemPromptRequest {
 
 // 系统参数响应
 export interface SystemPromptResponse {
-  message: string
+  message: OllamaResponse
   session_id: string
   status: 'success' | 'error'
 }
@@ -126,4 +126,34 @@ export interface SendMessageResponse {
   response: string
   session_id: string
   timestamp: string
+}
+
+// Ollama API 响应结构
+export interface OllamaResponse {
+  /// 模型的回答
+  response: string
+  /// 新的会话上下文
+  context?: number[]
+  /// 是否完成
+  done?: boolean
+  /// 完成原因
+  done_reason?: string
+  /// 模型名称
+  model?: string
+  /// 创建时间
+  created_at?: string
+  /// 思考过程（如果模型支持）
+  thinking?: string
+  /// 总处理时间（纳秒）
+  total_duration?: number
+  /// 模型加载时间（纳秒）
+  load_duration?: number
+  /// 提示词评估次数
+  prompt_eval_count?: number
+  /// 提示词评估时间（纳秒）
+  prompt_eval_duration?: number
+  /// 生成评估次数
+  eval_count?: number
+  /// 生成评估时间（纳秒）
+  eval_duration?: number
 }

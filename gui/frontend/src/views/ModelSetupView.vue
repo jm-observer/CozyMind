@@ -358,28 +358,19 @@ const sendSystemPrompt = async () => {
     modelSetupStore.setSystemPrompt(localSystemPrompt.value)
     const response = await modelSetupStore.sendSystemPrompt()
     
-    // 如果返回 null，说明发送条件不满足，直接返回
-    if (!response) {
-      // 移除用户消息，因为发送失败
-      const messageIndex = messages.value.findIndex(m => m.id === userMessage.id)
-      if (messageIndex !== -1) {
-        messages.value.splice(messageIndex, 1)
-      }
-      return
-    }
-    
-    localSystemPrompt.value = ''
-    
     // 更新消息状态为已发送
     const messageIndex = messages.value.findIndex(m => m.id === userMessage.id)
-    if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 'sent'
+    if (!response || messageIndex === -1) {
+        messages.value[messageIndex].status = 'failed'
+        return
     }
-    
+    messages.value[messageIndex].status = 'sent'
+    localSystemPrompt.value = ''
+    console.log('[ModelSetup] 系统参数发送成功', response)
     // 添加AI回复消息，使用后端返回的消息
     const aiMessage = {
       id: (Date.now() + 1).toString(),
-      content: response.message || '系统参数已发送成功',
+      content: response.message.response,
       role: 'assistant' as const,
       timestamp: new Date().toISOString(),
       status: 'sent' as const

@@ -3,13 +3,10 @@ import type {
   ApiResponse, 
   AICoreConfig, 
   OllamaConfig, 
-  CheckConnectionRequest, 
   CheckConnectionResponse, 
   MessagePreset, 
   AddMessageRequest, 
   UpdateMessageRequest, 
-  SystemPromptRequest, 
-  SystemPromptResponse,
   ChatMessage,
   ChatSession,
   SendMessageRequest,
@@ -191,28 +188,6 @@ export const messageApi = {
   }
 }
 
-// 模型设定相关 API
-export const modelSetupApi = {
-  // 发送系统参数
-  async sendSystemPrompt(request: SystemPromptRequest): Promise<SystemPromptResponse> {
-    const response = await api.post('/system-prompt', request)
-    
-    // 后端现在直接返回文本，需要解析成 OllamaResponse
-    try {
-      const ollamaResponse = response.data as any // 直接是 OllamaResponse 对象
-      
-      // 构造 SystemPromptResponse
-      return {
-        message: ollamaResponse.response || '系统参数已设定',
-        session_id: request.session_id || 'default',
-        status: 'success'
-      }
-    } catch (error) {
-      console.error('解析 OllamaResponse 失败:', error)
-      throw new Error('解析响应失败')
-    }
-  }
-}
 
 // 聊天相关 API
 export const chatApi = {
