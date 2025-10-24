@@ -18,6 +18,7 @@ chrono = "0.4"
 
 # 内部依赖
 mqtt-client = { path = "../crates/mqtt-client" }
+ollama-models = { path = "../crates/ollama-models" }
 
 # MQTT client dependencies (通过 mqtt-client 间接使用)
 rumqttc = "0.20"

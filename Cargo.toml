@@ -5,7 +5,7 @@ members = [
     "broker",
     "gui",
     "crates/mqtt-client",
-    "crates/message-models",
+    "crates/message-models", "crates/ollama-models",
 ]
 
 [workspace.package]

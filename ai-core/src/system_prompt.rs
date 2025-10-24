@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::ollama_client::OllamaResponse;
+use ollama_models::OllamaResponse;
 
 /// 系统参数设定请求
 #[derive(Debug, Clone, Deserialize)]
