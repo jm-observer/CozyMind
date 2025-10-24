@@ -669,7 +669,7 @@ onMounted(() => {
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .chat-header {
@@ -683,7 +683,7 @@ onMounted(() => {
 
 .chat-messages {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   margin-bottom: 20px;
   padding: 20px;
   border: 1px solid #e5e7eb;
@@ -973,7 +973,7 @@ onMounted(() => {
 
 .messages-container {
   max-height: 400px;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 12px;
   background: white;
   border-radius: 6px;
@@ -1167,7 +1167,7 @@ onMounted(() => {
 
 .message-list {
   max-height: 300px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .message-option {

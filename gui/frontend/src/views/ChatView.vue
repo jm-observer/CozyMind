@@ -30,7 +30,7 @@
         </div>
 
         <!-- 会话列表 -->
-        <div class="flex-1 overflow-y-auto">
+        <div class="flex-1 overflow-hidden">
           <div v-if="chatStore.sessions.length === 0" class="p-4 text-center text-gray-500">
             <p>暂无会话</p>
             <p class="text-sm mt-2">点击"新建会话"开始对话</p>
@@ -96,7 +96,7 @@
         </div>
 
         <!-- 消息列表 -->
-        <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="messagesContainer">
+        <div class="flex-1 overflow-hidden p-4 space-y-4" ref="messagesContainer">
           <div v-if="chatStore.currentMessages.length === 0" class="text-center text-gray-500 mt-8">
             <div class="text-6xl mb-4">💬</div>
             <p class="text-lg">开始新的对话</p>
@@ -314,23 +314,6 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* 滚动条样式 */
-.overflow-y-auto::-webkit-scrollbar {
-  width: 6px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
+/* 滚动条样式已移除，因为不再使用滚动 */
 </style>
 

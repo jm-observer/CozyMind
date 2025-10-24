@@ -39,16 +39,12 @@
 
 <style scoped>
 .main-nav {
-  position: fixed;
-  top: 80px; /* 在头部下方 */
-  left: 0;
-  right: 0;
-  z-index: 999;
   display: flex;
   justify-content: center;
   padding: 10px 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  height: 60px; /* 导航栏高度 */
 }
 
 .nav-container {

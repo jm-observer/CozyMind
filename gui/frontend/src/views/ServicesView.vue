@@ -345,7 +345,7 @@ onMounted(async () => {
 }
 
 .log-content {
-  @apply max-h-64 overflow-y-auto;
+  @apply max-h-64 overflow-hidden;
 }
 
 .log-item {

@@ -20,12 +20,16 @@ import AppNav from './AppNav.vue'
 
 <style scoped>
 .app-layout {
-  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  overflow: hidden; /* 防止app-layout本身滚动 */
+  display: flex;
+  flex-direction: column;
 }
 
 .main-content {
-  padding-top: 180px; /* 为固定头部和导航栏留出空间 */
-  min-height: calc(100vh - 180px);
+  flex: 1; /* 占用剩余全部空间 */
+  overflow: hidden; /* 主内容区域不滚动 */
+  display: block; /* 设置为block，紧贴导航栏 */
 }
 </style>

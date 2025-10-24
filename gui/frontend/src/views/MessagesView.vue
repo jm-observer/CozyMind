@@ -495,7 +495,7 @@ onMounted(() => {
 
 .messages-list {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .message-item {
@@ -590,7 +590,7 @@ onMounted(() => {
 
 .message-detail-content {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .empty-state {
