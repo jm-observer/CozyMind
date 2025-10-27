@@ -29,6 +29,13 @@
       >
         💭 用户对话
       </router-link>
+      <router-link 
+        to="/mqtt-test" 
+        class="nav-btn"
+        :class="{ active: $route.path === '/mqtt-test' }"
+      >
+        🔧 MQTT测试
+      </router-link>
     </div>
   </nav>
 </template>

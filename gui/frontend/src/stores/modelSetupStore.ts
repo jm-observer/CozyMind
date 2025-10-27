@@ -78,7 +78,13 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
   }
 
   const sendSystemPrompt = async () => {
+    console.log('[ModelSetup Store] 开始发送系统参数')
+    console.log('[ModelSetup Store] canSend:', canSend.value)
+    console.log('[ModelSetup Store] selectedAiCoreId:', selectedAiCoreId.value)
+    console.log('[ModelSetup Store] systemPrompt:', systemPrompt.value)
+    
     if (!canSend.value) {
+      console.log('[ModelSetup Store] 发送条件不满足，返回 null')
       // 弹窗提示用户
       if (typeof window !== 'undefined' && (window as any).ElMessage) {
         (window as any).ElMessage.warning('请选择AI-Core服务并输入系统参数')
@@ -86,6 +92,7 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
       return null
     }
 
+    console.log('[ModelSetup Store] 开始发送请求')
     loading.value = true
     error.value = null
 
@@ -96,10 +103,13 @@ export const useModelSetupStore = defineStore('modelSetup', () => {
         session_id: sessionId.value || undefined
       }
 
+      console.log('[ModelSetup Store] 请求参数:', request)
       const startTime = Date.now()
       
       // 直接调用 API
+      console.log('[ModelSetup Store] 调用 API: /system-prompt')
       const response = await api.post('/system-prompt', request)
+      console.log('[ModelSetup Store] API 响应:', response.data)
       const ollamaResponse = response.data as OllamaResponse
       
       const responseTime = Date.now() - startTime

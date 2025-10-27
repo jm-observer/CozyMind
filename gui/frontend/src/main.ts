@@ -6,6 +6,11 @@ import 'tailwindcss/tailwind.css'
 import App from './App.vue'
 import router from './router'
 
+// 开发环境导入 MQTT 测试工具
+if (import.meta.env.DEV) {
+  import('./services/mqttClient')
+}
+
 const app = createApp(App)
 
 app.use(createPinia())

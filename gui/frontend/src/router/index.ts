@@ -41,6 +41,15 @@ const routes = [
       keepAlive: true,
       preload: false 
     }
+  },
+  {
+    path: '/mqtt-test',
+    name: 'MqttTest',
+    component: () => import(/* webpackChunkName: "mqtt-test" */ '@/views/MqttTestView.vue'),
+    meta: { 
+      keepAlive: false,
+      preload: false 
+    }
   }
 ]
 

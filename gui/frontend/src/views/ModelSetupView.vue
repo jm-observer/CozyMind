@@ -170,7 +170,7 @@
     <!-- 消息选择器模态框 -->
     <el-dialog
       v-model="messageSelectorVisible"
-      title="选择消息预设"
+      :title="messageSelectorType === 'select' ? '选择消息预设' : '选择并发送消息'"
       width="600px"
       @close="closeMessageSelector"
     >
@@ -201,18 +201,11 @@
             v-for="message in filteredSystemMessages"
             :key="message.id"
             class="message-option"
-            @click="selectMessage(message)"
+            :class="{ 'message-option-selected': selectedMessage?.id === message.id }"
+            @click="handleMessageSelect(message)"
           >
             <div class="message-option-header">
               <h4>{{ message.title }}</h4>
-              <div class="message-option-actions">
-                <el-button size="small" @click.stop="selectMessageAndSend(message)">
-                  选择并发送
-                </el-button>
-                <el-button size="small" @click.stop="selectMessage(message)">
-                  选择
-                </el-button>
-              </div>
             </div>
             <p class="message-option-content">{{ truncateText(message.content, 150) }}</p>
             <div class="message-option-meta">
@@ -225,6 +218,14 @@
       
       <template #footer>
         <el-button @click="closeMessageSelector">取消</el-button>
+        <el-button 
+          v-if="messageSelectorType === 'selectAndSend'"
+          type="primary" 
+          @click="sendSelectedMessage"
+          :disabled="!selectedMessage"
+        >
+          发送选中的消息
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -253,6 +254,10 @@ const messageSearchQuery = ref('')
 const debouncedSearchQuery = ref('')
 const messagesContainer = ref<HTMLElement>()
 const localSystemPrompt = ref('') // 本地输入框的值
+
+// 弹窗类型：'select' | 'selectAndSend'
+const messageSelectorType = ref<'select' | 'selectAndSend'>('select')
+const selectedMessage = ref<MessagePreset | null>(null)
 
 // 性能优化：限制渲染的消息数量
 const MAX_VISIBLE_MESSAGES = 50
@@ -335,48 +340,50 @@ const loadData = async () => {
   }
 }
 
-const sendSystemPrompt = async () => {
-  // 显示用户消息（发送中状态）
-  const userMessage = {
-    id: Date.now().toString(),
-    content: localSystemPrompt.value,
-    role: 'user' as const,
-    timestamp: new Date().toISOString(),
-    status: 'sending' as const
-  }
-  
-  // 添加到消息列表
-  messages.value.push(userMessage)
-  
-  // 滚动到底部
-  scrollToBottom()
-  
+// 异步处理发送逻辑，避免界面卡住
+const processSendRequest = async (userMessage: any) => {
   try {
-    // 发送前先更新 store 中的 systemPrompt
-    modelSetupStore.setSystemPrompt(localSystemPrompt.value)
+    console.log('[ModelSetup] 开始处理发送请求')
+    
+    // 发送前先更新 store 中的 systemPrompt（使用原始值）
+    console.log('[ModelSetup] 更新 store 中的 systemPrompt:', userMessage.content)
+    modelSetupStore.setSystemPrompt(userMessage.content)
+    
+    console.log('[ModelSetup] 调用 store.sendSystemPrompt()')
     const response = await modelSetupStore.sendSystemPrompt()
+    console.log('[ModelSetup] store.sendSystemPrompt() 响应:', response)
     
     // 更新消息状态为已发送
     const messageIndex = messages.value.findIndex(m => m.id === userMessage.id)
+    console.log('[ModelSetup] 查找消息索引:', messageIndex)
+    console.log('[ModelSetup] 响应内容:', response)
+    
     if (!response || messageIndex === -1) {
+        console.log('[ModelSetup] 响应为空或消息索引无效，标记为失败')
         messages.value[messageIndex].status = 'failed'
         return
     }
+    
+    console.log('[ModelSetup] 更新消息状态为已发送')
     messages.value[messageIndex].status = 'sent'
-    localSystemPrompt.value = ''
+    
     // 添加AI回复消息，使用后端返回的消息
+    console.log('[ModelSetup] 创建AI回复消息，响应结构:', response)
     const aiMessage = {
       id: (Date.now() + 1).toString(),
-      content: response.message.response,
+      content: response.response || response.message?.response || '系统参数已设定',
       role: 'assistant' as const,
       timestamp: new Date().toISOString(),
       status: 'sent' as const
     }
+    
+    console.log('[ModelSetup] AI回复消息内容:', aiMessage)
     messages.value.push(aiMessage)
     
     scrollToBottom()
     
     ElMessage.success('系统参数发送成功')
+    console.log('[ModelSetup] 发送成功完成')
   } catch (err) {
     console.error('[ModelSetup] 发送失败:', err)
     
@@ -390,6 +397,35 @@ const sendSystemPrompt = async () => {
   }
 }
 
+const sendSystemPrompt = () => {
+  console.log('[ModelSetup] 开始发送系统参数')
+  console.log('[ModelSetup] 当前输入内容:', localSystemPrompt.value)
+  console.log('[ModelSetup] 选中的AI-Core ID:', selectedAiCoreId.value)
+  
+  // 显示用户消息（发送中状态）
+  const userMessage = {
+    id: Date.now().toString(),
+    content: localSystemPrompt.value,
+    role: 'user' as const,
+    timestamp: new Date().toISOString(),
+    status: 'sending' as const
+  }
+  
+  console.log('[ModelSetup] 创建用户消息:', userMessage)
+  
+  // 添加到消息列表
+  messages.value.push(userMessage)
+  
+  // 滚动到底部
+  scrollToBottom()
+  
+  // 清空输入框（立即清空，不等待响应）
+  localSystemPrompt.value = ''
+  
+  // 异步处理发送请求，不阻塞界面
+  processSendRequest(userMessage)
+}
+
 const clearSystemPrompt = () => {
   localSystemPrompt.value = ''
   modelSetupStore.clearSystemPrompt()
@@ -401,27 +437,21 @@ const clearHistory = () => {
 }
 
 const showMessageSelector = async () => {
+  messageSelectorType.value = 'select'
+  selectedMessage.value = null
   
   // 强制重新加载消息数据
   await messageStore.loadMessages(true)
-  
-  
-  
-  // 强制触发计算属性
-  const filtered = filteredSystemMessages.value
   
   messageSelectorVisible.value = true
 }
 
 const showMessageSelectorAndSend = async () => {
+  messageSelectorType.value = 'selectAndSend'
+  selectedMessage.value = null
   
   // 强制重新加载消息数据
   await messageStore.loadMessages(true)
-  
-  
-  
-  // 强制触发计算属性
-  const filtered = filteredSystemMessages.value
   
   messageSelectorVisible.value = true
 }
@@ -429,6 +459,27 @@ const showMessageSelectorAndSend = async () => {
 const closeMessageSelector = () => {
   messageSelectorVisible.value = false
   messageSearchQuery.value = ''
+  selectedMessage.value = null
+}
+
+// 处理消息选择
+const handleMessageSelect = (message: MessagePreset) => {
+  if (messageSelectorType.value === 'select') {
+    // 只选择模式：直接选择并关闭弹窗
+    selectMessage(message)
+  } else {
+    // 选择并发送模式：选中消息但不关闭弹窗
+    sendSelectedMessage(message)
+  }
+}
+
+// 发送选中的消息
+const sendSelectedMessage = async (message: MessagePreset) => {
+  // 关闭弹窗
+  closeMessageSelector()
+  
+  // 选择消息并发送
+  await selectMessageAndSend(message)
 }
 
 const selectMessage = (message: MessagePreset) => {
@@ -439,14 +490,15 @@ const selectMessage = (message: MessagePreset) => {
   closeMessageSelector()
 }
 
-const selectMessageAndSend = async (message: MessagePreset) => {
+const selectMessageAndSend = (message: MessagePreset) => {
+  console.log('[ModelSetup] 开始选择并发送消息:', message.title)
+  console.log('[ModelSetup] 消息内容:', message.content)
   
   // 立即关闭选择框
   closeMessageSelector()
   
   // 更新本地输入框
-  localSystemPrompt.value = message.content
-  
+  // localSystemPrompt.value = message.content
   
   // 显示用户消息（发送中状态）
   const userMessage = {
@@ -457,66 +509,16 @@ const selectMessageAndSend = async (message: MessagePreset) => {
     status: 'sending' as const
   }
   
+  console.log('[ModelSetup] 创建用户消息:', userMessage)
+  
   // 添加到消息列表
   messages.value.push(userMessage)
   
   // 滚动到底部
   scrollToBottom()
   
-  // 异步发送系统参数
-  try {
-    // 发送前更新 store 中的 systemPrompt
-    modelSetupStore.setSystemPrompt(message.content)
-    const response = await modelSetupStore.sendSystemPrompt()
-    
-    // 如果返回 null，说明发送条件不满足，直接返回
-    if (!response) {
-      // 移除用户消息，因为发送失败
-      const msgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
-      if (msgIndex !== -1) {
-        messages.value.splice(msgIndex, 1)
-      }
-      return
-    }
-    
-    // 更新用户消息状态为已发送
-    const msgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
-    if (msgIndex !== -1) {
-      messages.value[msgIndex].status = 'sent'
-    }
-    
-    // 显示AI回复消息，使用后端返回的消息
-    const aiMessage = {
-      id: (Date.now() + 1).toString(),
-      content: response.message || '系统参数已成功发送到AI-Core服务',
-      role: 'assistant' as const,
-      timestamp: new Date().toISOString(),
-      status: 'sent' as const
-    }
-    
-    messages.value.push(aiMessage)
-    
-    scrollToBottom()
-  } catch (err) {
-    // 更新用户消息状态为失败
-    const msgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
-    if (msgIndex !== -1) {
-      messages.value[msgIndex].status = 'failed'
-    }
-    
-    // 显示错误消息
-    const errorMessage = {
-      id: (Date.now() + 1).toString(),
-      content: '发送失败，请检查AI-Core服务状态',
-      role: 'assistant' as const,
-      timestamp: new Date().toISOString(),
-      status: 'failed' as const
-    }
-    
-    messages.value.push(errorMessage)
-    
-    scrollToBottom()
-  }
+  // 异步处理发送请求，不阻塞界面
+  processSendRequest(userMessage)
 }
 
 const handleAiCoreChange = () => {
@@ -950,7 +952,9 @@ onMounted(() => {
   position: relative; /* For arrow */
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   transition: max-width 0.2s ease;
-
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .message-user .message-content {
   background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
@@ -1100,6 +1104,17 @@ onMounted(() => {
 .message-option:hover {
   border-color: #3b82f6;
   box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+}
+
+.message-option-selected {
+  border-color: #3b82f6 !important;
+  background-color: #eff6ff !important;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2) !important;
+}
+
+.message-option-selected:hover {
+  border-color: #2563eb !important;
+  background-color: #dbeafe !important;
 }
 
 .message-option-header {

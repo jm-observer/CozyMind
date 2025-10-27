@@ -113,7 +113,7 @@
             }"
           >
             <div
-              class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg"
+              class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg message-content"
               :class="{
                 'bg-blue-500 text-white': message.role === 'user',
                 'bg-white border border-gray-200': message.role === 'assistant'
@@ -198,7 +198,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { useChatStore } from '@/stores/chatStore'
@@ -292,6 +292,9 @@ const formatTime = (timestamp: string) => {
 // 生命周期
 onMounted(async () => {
   try {
+    // 初始化 WebSocket 连接
+    await chatStore.initializeWebSocket()
+    
     await Promise.all([
       chatStore.loadSessions(),
       aiCoreStore.loadAICores(),
@@ -306,12 +309,25 @@ onMounted(async () => {
     ElMessage.error('加载数据失败')
   }
 })
+
+// 组件卸载时清理资源
+onUnmounted(() => {
+  chatStore.cleanup()
+})
 </script>
 
 <style scoped>
 .chat-view {
   height: 100vh;
   overflow: hidden;
+}
+
+/* 消息内容样式 - 与 ModelSetupView 保持一致 */
+.message-content {
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  word-wrap: break-word;
 }
 
 /* 滚动条样式 */

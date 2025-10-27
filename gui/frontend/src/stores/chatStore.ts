@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { chatApi } from '@/services/api'
 import { useAICoreStore } from './aiCoreStore'
+import { mqttClient } from '@/services/mqttClient'
 import type { ChatMessage, ChatSession, SendMessageRequest } from '@/types/api'
 
 export const useChatStore = defineStore('chat', () => {
@@ -11,7 +12,7 @@ export const useChatStore = defineStore('chat', () => {
   const currentSessionId = ref<string | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const isConnected = ref(false)
+  const isConnected = computed(() => mqttClient.getConnectionStatus().isConnected)
 
   // 依赖的 stores
   const aiCoreStore = useAICoreStore()
@@ -33,6 +34,47 @@ export const useChatStore = defineStore('chat', () => {
   const selectedAiCore = computed(() => {
     return aiCoreStore.aiCores.find(core => core.status === 'online')
   })
+
+  // 初始化 MQTT 连接和消息处理器
+  const initializeWebSocket = async () => {
+    try {
+      await mqttClient.connect({
+        clientId: `chat_client_${Date.now()}`,
+        clean: true,
+        keepalive: 60
+      })
+      
+      // 设置消息处理器
+      mqttClient.onMessage((topic, payload, packet) => {
+        console.log('📨 MQTT message received:', {
+          topic,
+          payload: payload.toString(),
+          qos: packet.qos,
+          retain: packet.retain
+        })
+        
+        // 处理聊天消息
+        if (topic.startsWith('chat/')) {
+          try {
+            const message = JSON.parse(payload.toString())
+            if (message.role && message.content) {
+              messages.value.push(message)
+            }
+          } catch (err) {
+            console.error('Failed to parse chat message:', err)
+          }
+        }
+      })
+      
+      // 订阅聊天主题
+      mqttClient.subscribe('chat/receive/+')
+      
+      console.log('[Chat Store] MQTT initialized successfully')
+    } catch (err) {
+      console.error('[Chat Store] Failed to initialize MQTT:', err)
+      error.value = 'MQTT connection failed'
+    }
+  }
 
   // 动作
   const loadSessions = async () => {
@@ -118,6 +160,10 @@ export const useChatStore = defineStore('chat', () => {
       throw new Error('请先选择AI-Core服务')
     }
 
+    if (!isConnected.value) {
+      throw new Error('WebSocket 未连接，请检查网络连接')
+    }
+
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       content,
@@ -137,31 +183,20 @@ export const useChatStore = defineStore('chat', () => {
         ai_core_id: selectedAiCore.value.id
       }
 
-      const response = await chatApi.sendMessage(request)
-      
-      // 更新用户消息状态
+      // 通过 MQTT 发送消息
+      const success = mqttClient.publish('chat/send', JSON.stringify(request))
+      if (!success) {
+        throw new Error('发送消息失败')
+      }
+
+      // 更新用户消息状态为已发送
       const userMsgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
       if (userMsgIndex !== -1) {
         messages.value[userMsgIndex].status = 'sent'
       }
 
-      // 添加AI回复消息
-      const aiMessage: ChatMessage = {
-        id: response.message_id,
-        content: response.response,
-        role: 'assistant',
-        timestamp: response.timestamp,
-        status: 'sent',
-        session_id: response.session_id
-      }
-
-      messages.value.push(aiMessage)
-      
-      // 更新当前会话ID
-      if (!currentSessionId.value) {
-        currentSessionId.value = response.session_id
-      }
-      return response
+      // AI 回复将通过 WebSocket 接收并自动添加到 messages 中
+      return { success: true }
     } catch (err) {
       // 更新用户消息状态为失败
       const userMsgIndex = messages.value.findIndex(msg => msg.id === userMessage.id)
@@ -183,6 +218,11 @@ export const useChatStore = defineStore('chat', () => {
     error.value = null
   }
 
+  // 清理资源
+  const cleanup = () => {
+    mqttClient.disconnect()
+  }
+
   return {
     // 状态
     messages,
@@ -199,6 +239,7 @@ export const useChatStore = defineStore('chat', () => {
     selectedAiCore,
     
     // 动作
+    initializeWebSocket,
     loadSessions,
     loadSessionMessages,
     createSession,
@@ -206,6 +247,7 @@ export const useChatStore = defineStore('chat', () => {
     selectSession,
     sendMessage,
     clearMessages,
-    clearError
+    clearError,
+    cleanup
   }
 })
