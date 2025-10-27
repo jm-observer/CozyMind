@@ -9,7 +9,7 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<ChatMessage[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const isConnected = computed(() => mqttClient.getConnectionStatus().isConnected)
+  const isConnected = computed(() => mqttClient.getConnectionStatus().connected)
 
   // 依赖的 stores
   const aiCoreStore = useAICoreStore()
