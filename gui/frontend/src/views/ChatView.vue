@@ -7,22 +7,22 @@
           <div class="chat-header">
             <h2 class="text-xl font-semibold">💬 用户对话</h2>
             <div class="chat-controls">
-              <!-- 连接状态 -->
+          <!-- 连接状态 -->
               <div class="flex items-center space-x-2 mr-4">
-                <div 
-                  class="w-2 h-2 rounded-full"
-                  :class="chatStore.isConnected ? 'bg-green-500' : 'bg-red-500'"
-                ></div>
-                <span class="text-sm text-gray-600">
-                  {{ chatStore.isConnected ? '已连接' : '未连接' }}
-                </span>
-              </div>
+            <div 
+              class="w-2 h-2 rounded-full"
+              :class="chatStore.isConnected ? 'bg-green-500' : 'bg-red-500'"
+            ></div>
+            <span class="text-sm text-gray-600">
+              {{ chatStore.isConnected ? '已连接' : '未连接' }}
+            </span>
+          </div>
               <el-button size="small" @click="clearMessages">
                 🗑️ 清空对话
               </el-button>
-            </div>
+        </div>
           </div>
-
+          
           <!-- 消息历史显示 -->
           <div class="chat-messages" ref="messagesContainer">
             <div v-if="chatStore.messages.length === 0" class="chat-welcome">
@@ -78,18 +78,18 @@
                 :rows="3"
                 placeholder="输入消息，按 Ctrl+Enter 发送..."
                 @keydown="handleKeydown"
-                :disabled="!chatStore.selectedAiCore"
+                :disabled="!chatStore.isConnected"
               />
               
               <div class="input-actions">
                 <div class="input-info">
-                  <span>{{ chatStore.selectedAiCore?.name || '未选择AI-Core服务' }}</span>
+                  <span>{{ chatStore.isConnected ? 'MQTT已连接' : 'MQTT未连接' }}</span>
                 </div>
-                <el-button 
+                <el-button
                   type="primary" 
                   @click="handleSendMessage"
                   :loading="chatStore.loading"
-                  :disabled="!messageInput.trim() || !chatStore.selectedAiCore"
+                  :disabled="!messageInput.trim() || !chatStore.isConnected"
                 >
                   🚀 发送消息
                 </el-button>
@@ -143,23 +143,10 @@
                   size="small"
                   class="topic-input"
                 />
-              </div>
-            </div>
           </div>
+        </div>
+      </div>
 
-          <div class="sidebar-section">
-            <h3 class="sidebar-title">AI-Core 服务</h3>
-            <div v-if="chatStore.selectedAiCore" class="core-info">
-              <p><strong>服务名称：</strong>{{ chatStore.selectedAiCore.name }}</p>
-              <p><strong>服务地址：</strong>{{ chatStore.selectedAiCore.url }}</p>
-              <p v-if="chatStore.selectedAiCore.description">
-                <strong>描述：</strong>{{ chatStore.selectedAiCore.description }}
-              </p>
-            </div>
-            <div v-else class="core-info">
-              <p class="text-gray-500">未选择 AI-Core 服务</p>
-            </div>
-          </div>
 
           <div class="sidebar-section">
             <h3 class="sidebar-title">消息统计</h3>
@@ -167,23 +154,23 @@
               <div class="stat-item">
                 <div class="stat-value">{{ messageStats.total }}</div>
                 <div class="stat-label">总消息</div>
-              </div>
+          </div>
               <div class="stat-item">
                 <div class="stat-value">{{ messageStats.user }}</div>
                 <div class="stat-label">用户</div>
-              </div>
+                  </div>
               <div class="stat-item">
                 <div class="stat-value">{{ messageStats.assistant }}</div>
                 <div class="stat-label">AI助手</div>
-              </div>
             </div>
           </div>
+        </div>
 
           <div class="sidebar-section">
             <h3 class="sidebar-title">操作</h3>
             <div class="action-buttons">
-              <el-button 
-                type="primary" 
+            <el-button
+              type="primary"
                 size="small" 
                 @click="reconnectMqtt"
                 :loading="reconnecting"
@@ -206,7 +193,7 @@
                 class="w-full"
               >
                 🧪 测试连接
-              </el-button>
+            </el-button>
             </div>
           </div>
         </div>
@@ -218,9 +205,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Delete } from '@element-plus/icons-vue'
 import { useChatStore } from '@/stores/chatStore'
-import { useAICoreStore } from '@/stores/aiCoreStore'
 import { mqttClient } from '@/services/mqttClient'
 
 // 状态
@@ -238,7 +223,6 @@ const publishTopic = ref('ai_core/message')
 
 // Stores
 const chatStore = useChatStore()
-const aiCoreStore = useAICoreStore()
 
 // 计算属性
 const messageStats = computed(() => {
@@ -251,7 +235,7 @@ const messageStats = computed(() => {
 })
 
 const handleSendMessage = async () => {
-  if (!messageInput.value.trim() || !chatStore.selectedAiCore) return
+  if (!messageInput.value.trim() || !chatStore.isConnected) return
   
   const content = messageInput.value.trim()
   messageInput.value = ''
@@ -260,7 +244,6 @@ const handleSendMessage = async () => {
     // 直接通过 MQTT 发送消息到指定的 topic
     const request = {
       message: content,
-      ai_core_id: chatStore.selectedAiCore.id,
       client_id: clientId.value,
       timestamp: new Date().toISOString()
     }
@@ -274,9 +257,9 @@ const handleSendMessage = async () => {
     const userMessage = {
       id: Date.now().toString(),
       content,
-      role: 'user',
+      role: 'user' as const,
       timestamp: new Date().toISOString(),
-      status: 'sent'
+      status: 'sent' as const
     }
     chatStore.messages.push(userMessage)
     
@@ -339,6 +322,13 @@ const reconnectMqtt = async () => {
   }
 }
 
+// 监听 MQTT 连接状态变化
+const setupMqttStatusListener = () => {
+  // 现在状态是响应式的，不需要额外的监听器
+  // chatStore.isConnected 会自动响应 mqttClient.getConnectionStatus().connected 的变化
+  console.log('✅ MQTT 状态监听器已设置（响应式）')
+}
+
 // 测试连接
 const testConnection = async () => {
   try {
@@ -364,22 +354,19 @@ const testConnection = async () => {
 onMounted(async () => {
   try {
     // 设置客户端ID
-    clientId.value = `chat_client_${Date.now()}`
+    clientId.value = `chat_client_10000`
     
     // 更新订阅 topic 为实际的客户端ID
     subscribeTopic.value = `user/message/${clientId.value}`
     
-    // 立即初始化 MQTT 连接
+    // 先设置 MQTT 状态监听器（在连接之前）
+    setupMqttStatusListener()
+    
+    // 然后初始化 MQTT 连接
     await chatStore.initializeWebSocket()
     
     // 订阅指定的 topic
     mqttClient.subscribe(subscribeTopic.value)
-    
-    // 加载 AI-Core 服务
-    await Promise.all([
-      aiCoreStore.loadAICores(),
-      aiCoreStore.checkAllConnections()
-    ])
   } catch (err) {
     ElMessage.error('加载数据失败')
   }

@@ -1,5 +1,6 @@
 // 使用 mqtt.js 的 MQTT 客户端
 import mqtt from 'mqtt'
+import { reactive } from 'vue'
 
 export interface MqttConnectOptions {
   clientId?: string
@@ -18,8 +19,15 @@ export interface MqttMessage {
 
 export class MqttClient {
   private client: mqtt.MqttClient | null = null
-  private isConnected = false
-  private messageId = 0
+  private connectionStatus = reactive({
+    connected: false,
+    clientId: ''
+  })
+
+  // 获取客户端实例（用于监听事件）
+  get clientInstance() {
+    return this.client
+  }
 
   // 连接到 MQTT broker
   async connect(options: MqttConnectOptions = {}): Promise<void> {
@@ -59,21 +67,22 @@ export class MqttClient {
         // 连接成功
         this.client.on('connect', () => {
           console.log('✅ MQTT connected successfully')
-          this.isConnected = true
+          this.connectionStatus.connected = true
+          this.connectionStatus.clientId = clientId
           resolve()
         })
 
         // 连接错误
         this.client.on('error', (error) => {
           console.error('❌ MQTT connection error:', error)
-          this.isConnected = false
+          this.connectionStatus.connected = false
           reject(error)
         })
 
         // 连接关闭
         this.client.on('close', () => {
           console.log('🔌 MQTT connection closed')
-          this.isConnected = false
+          this.connectionStatus.connected = false
         })
 
         // 接收消息
@@ -89,17 +98,18 @@ export class MqttClient {
         // 重连
         this.client.on('reconnect', () => {
           console.log('🔄 MQTT reconnecting...')
+          this.connectionStatus.connected = false
         })
 
         // 离线
         this.client.on('offline', () => {
           console.log('📴 MQTT offline')
-          this.isConnected = false
+          this.connectionStatus.connected = false
         })
 
         // 设置连接超时
         setTimeout(() => {
-          if (!this.isConnected) {
+          if (!this.connectionStatus.connected) {
             reject(new Error('Connection timeout'))
           }
         }, 10000)
@@ -115,7 +125,7 @@ export class MqttClient {
     qos?: 0 | 1 | 2
     retain?: boolean
   } = {}): boolean {
-    if (!this.client || !this.isConnected) {
+    if (!this.client || !this.connectionStatus.connected) {
       console.error('❌ MQTT client not connected')
       return false
     }
@@ -136,7 +146,7 @@ export class MqttClient {
   subscribe(topic: string, options: {
     qos?: 0 | 1 | 2
   } = {}): boolean {
-    if (!this.client || !this.isConnected) {
+    if (!this.client || !this.connectionStatus.connected) {
       console.error('❌ MQTT client not connected')
       return false
     }
@@ -155,7 +165,7 @@ export class MqttClient {
 
   // 取消订阅主题
   unsubscribe(topic: string): boolean {
-    if (!this.client || !this.isConnected) {
+    if (!this.client || !this.connectionStatus.connected) {
       console.error('❌ MQTT client not connected')
       return false
     }
@@ -175,18 +185,15 @@ export class MqttClient {
     if (this.client) {
       this.client.end()
       this.client = null
-      this.isConnected = false
+      this.connectionStatus.connected = false
+      this.connectionStatus.clientId = ''
       console.log('🔌 MQTT disconnected')
     }
   }
 
   // 获取连接状态
   getConnectionStatus() {
-    return {
-      isConnected: this.isConnected,
-      clientId: this.client?.options?.clientId,
-      connected: this.client?.connected || false
-    }
+    return this.connectionStatus
   }
 
   // 设置消息处理器
