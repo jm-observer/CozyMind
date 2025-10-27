@@ -2,7 +2,7 @@ mod ollama_client;
 mod system_prompt;
 
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use message_models::{Envelope, MessageContent};
+// use message_models::{Envelope, MessageContent};
 use mqtt_client::{ClientConfig, MqttClient, QoS};
 use ollama_client::OllamaClient;
 use serde::{Deserialize, Serialize};
@@ -47,49 +47,96 @@ async fn index() -> impl Responder {
 /// 处理用户消息并发送给 Ollama
 /// 
 /// 这是一个独立的异步函数，用于处理从 MQTT 接收的用户消息
-async fn handle_user_message(payload: Vec<u8>, ollama_client: OllamaClient) {
+async fn handle_user_message(
+    payload: Vec<u8>, 
+    ollama_client: OllamaClient,
+    mqtt_client: Arc<RwLock<Option<MqttClient>>>,
+    _client_id: String,
+) {  
     // 解析 MQTT 消息
     match String::from_utf8(payload) {
         Ok(json_str) => {
             log::debug!("📝 解析用户消息: {}", json_str);
             
-            // 尝试解析为 Envelope
-            match Envelope::from_json(&json_str) {
-                Ok(envelope) => {
-                    // 提取消息内容
-                    let user_prompt = match envelope.content {
-                        MessageContent::Text(text) => text,
-                        _ => {
-                            log::warn!("⚠️  非文本消息，跳过");
-                            return;
-                        }
-                    };
+            // 解析用户消息，提取消息内容和客户端ID
+            let user_message: Result<serde_json::Value, _> = serde_json::from_str(&json_str);
+            let (message_content, user_client_id) = match user_message {
+                Ok(msg) => {
+                    let content = msg.get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&json_str)
+                        .to_string();
+                    let client_id = msg.get("client_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    (content, client_id)
+                }
+                Err(_) => {
+                    // 如果解析失败，直接使用原始字符串
+                    (json_str, "unknown".to_string())
+                }
+            };
+            
+            log::info!("📨 处理用户消息 - 客户端ID: {}, 内容: {}", user_client_id, message_content);
+            
+            // 调用 Ollama 处理消息
+            match ollama_client.ask(&message_content, "gpt-oss:20b", false).await {
+                Ok(response) => {
+                    log::info!("✅ Ollama 响应: {}", response);
                     
-                    log::info!("💬 用户提问: {}", user_prompt);
+                    // 构造回复消息
+                    let reply_message = serde_json::json!({
+                        "message": response,
+                        "client_id": user_client_id,
+                        "timestamp": chrono::Utc::now().to_rfc3339(),
+                        "role": "assistant"
+                    });
                     
-                    // 调用 Ollama
-                    match ollama_client.ask(&user_prompt, "gpt-oss:20b", false).await {
-                        Ok(response) => {
-                            log::info!("✅ Ollama 响应: {}", response);
-                            // TODO: 将响应发送回 MQTT 或其他处理
+                    // 构造回复的 topic，格式为 user/message/{client_id}
+                    let reply_topic = format!("user/message/{}", user_client_id);
+                    
+                    // 通过 MQTT 发送回复消息
+                    if let Some(client) = mqtt_client.read().await.as_ref() {
+                        match client.publish_json(
+                            &reply_topic,
+                            &reply_message,
+                            QoS::AtLeastOnce,
+                            false,
+                        ).await {
+                            Ok(_) => {
+                                log::info!("✅ 回复消息已发送到 topic: {}", reply_topic);
+                            }
+                            Err(e) => {
+                                log::error!("❌ 发送回复消息失败: {}", e);
+                            }
                         }
-                        Err(e) => {
-                            log::error!("❌ Ollama 请求失败: {}", e);
-                        }
+                    } else {
+                        log::error!("❌ MQTT 客户端未连接，无法发送回复");
                     }
                 }
                 Err(e) => {
-                    log::warn!("⚠️  消息解析失败，尝试作为纯文本处理: {}", e);
+                    log::error!("❌ Ollama 请求失败: {}", e);
                     
-                    // 作为纯文本处理
-                    log::info!("💬 用户提问（纯文本）: {}", json_str);
+                    // 发送错误回复
+                    let error_message = serde_json::json!({
+                        "message": format!("抱歉，处理您的消息时出现错误: {}", e),
+                        "client_id": user_client_id,
+                        "timestamp": chrono::Utc::now().to_rfc3339(),
+                        "role": "assistant",
+                        "error": true
+                    });
                     
-                    match ollama_client.ask(&json_str, "gpt-oss:20b", false).await {
-                        Ok(response) => {
-                            log::info!("✅ Ollama 响应: {}", response);
-                        }
-                        Err(e) => {
-                            log::error!("❌ Ollama 请求失败: {}", e);
+                    let reply_topic = format!("user/message/{}", user_client_id);
+                    
+                    if let Some(client) = mqtt_client.read().await.as_ref() {
+                        if let Err(e) = client.publish_json(
+                            &reply_topic,
+                            &error_message,
+                            QoS::AtLeastOnce,
+                            false,
+                        ).await {
+                            log::error!("❌ 发送错误回复失败: {}", e);
                         }
                     }
                 }
@@ -147,12 +194,32 @@ async fn main() -> anyhow::Result<()> {
         "MQTT_KEEP_ALIVE",
     );
 
-    let mut mqtt_client = MqttClient::new(mqtt_config, tx);
+    let mqtt_client = MqttClient::new(mqtt_config, tx);
 
     // 创建 Ollama 客户端（需要在 spawn 之前创建以便在异步任务中使用）
     let ollama_client_for_mqtt = OllamaClient::from_env();
     log::info!("🧠 Ollama client initialized");
 
+    // 创建共享的 MQTT 客户端引用
+    let mqtt_client_shared = Arc::new(RwLock::new(Some(mqtt_client)));
+
+    // 连接MQTT客户端
+    {
+        let mut mqtt_client_guard = mqtt_client_shared.write().await;
+        if let Some(ref mut client) = mqtt_client_guard.as_mut() {
+            client.connect().await.unwrap();
+            
+            if let Some(client_ref) = client.client.as_ref() {
+                client_ref.subscribe("/ai-core/from-user/message", QoS::AtLeastOnce).await?;
+                client_ref.subscribe("/ai-core/from-module/message", QoS::AtLeastOnce).await?;
+                log::info!("✅ MQTT 订阅已设置");
+            }
+        }
+    }
+
+    // 克隆引用用于异步任务
+    let mqtt_client_for_task = mqtt_client_shared.clone();
+    
     tokio::spawn(async move {
         while let Some(message) = rx.recv().await {
             log::info!("📨 Received MQTT message: {:?}", message);
@@ -163,9 +230,11 @@ async fn main() -> anyhow::Result<()> {
                     // 发起独立的异步任务处理用户消息
                     let payload = message.payload.clone();
                     let ollama_client = ollama_client_for_mqtt.clone();
+                    let mqtt_client = mqtt_client_for_task.clone();
+                    let client_id = "ai-core".to_string();
                     
                     tokio::spawn(async move {
-                        handle_user_message(payload, ollama_client).await;
+                        handle_user_message(payload, ollama_client, mqtt_client, client_id).await;
                     });
                 }
                 "/ai-core/from-module/message" => {
@@ -178,14 +247,6 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    mqtt_client.connect().await.unwrap();
-
-    if let Some(client) = mqtt_client.client.as_ref() {
-        client.subscribe("/ai-core/from-user/message", QoS::AtLeastOnce).await?;
-        client.subscribe("/ai-core/from-module/message", QoS::AtLeastOnce).await?;
-        // client.subscribe("topic", QoS::AtLeastOnce).await?;
-    }
-
     // 创建 Ollama 客户端（用于 web API）
     let ollama_client = OllamaClient::from_env();
     log::info!("🧠 Ollama web client initialized");
@@ -194,20 +255,19 @@ async fn main() -> anyhow::Result<()> {
     let session_store = Arc::new(SessionStore::new());
     log::info!("💾 Session store initialized");
     
-    start_web(mqtt_client, ollama_client, session_store, host, port).await?;
+    start_web(mqtt_client_shared, ollama_client, session_store, host, port).await?;
     Ok(())
     
 }
 
 async fn start_web(
-    mqtt_client: MqttClient,
+    mqtt_client: Arc<RwLock<Option<MqttClient>>>,
     ollama_client: OllamaClient,
     session_store: Arc<SessionStore>,
     host: String,
     port: u16,
 ) -> io::Result<()> {
     // 创建共享状态
-    let mqtt_client = Arc::new(RwLock::new(Some(mqtt_client)));
     let ollama_client = Arc::new(ollama_client);
 
     HttpServer::new(move || {
