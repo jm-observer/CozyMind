@@ -26,17 +26,19 @@ fn main() {
     let prometheus_port = std::env::var("BROKER_PROMETHEUS_PORT").unwrap_or_else(|_| "9042".to_string());
     let console_host = std::env::var("BROKER_CONSOLE_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let console_port = std::env::var("BROKER_CONSOLE_PORT").unwrap_or_else(|_| "33030".to_string());
-
+    let ws_host = std::env::var("BROKER_WS_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let ws_port = std::env::var("BROKER_WS_PORT").unwrap_or_else(|_| "8885".to_string());
     // 创建配置覆盖
     let mut overrides = HashMap::new();
     overrides.insert("v4.1.listen".to_string(), format!("{}:{}", mqtt_v4_host, mqtt_v4_port));
     overrides.insert("v5.1.listen".to_string(), format!("{}:{}", mqtt_v5_host, mqtt_v5_port));
     overrides.insert("prometheus.listen".to_string(), format!("{}:{}", prometheus_host, prometheus_port));
     overrides.insert("console.listen".to_string(), format!("{}:{}", console_host, console_port));
-
+    overrides.insert("ws.1.listen".to_string(), format!("{}:{}", ws_host, ws_port));    
     println!("📡 MQTT Broker Configuration:");
     println!("  MQTT v4: {}", overrides.get("v4.1.listen").unwrap());
     println!("  MQTT v5: {}", overrides.get("v5.1.listen").unwrap());
+    println!("  WS: {}", overrides.get("ws.1.listen").unwrap());
     println!("  Prometheus: {}", overrides.get("prometheus.listen").unwrap());
     println!("  Console: {}", overrides.get("console.listen").unwrap());
 

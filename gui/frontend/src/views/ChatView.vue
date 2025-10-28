@@ -76,7 +76,7 @@
                 v-model="messageInput"
                 type="textarea"
                 :rows="3"
-                placeholder="输入消息，按 Ctrl+Enter 发送..."
+                placeholder="输入消息，按 Enter 或 Ctrl+Enter 发送..."
                 @keydown="handleKeydown"
                 :disabled="!chatStore.isConnected"
               />
@@ -219,7 +219,7 @@ const clientId = ref('')
 
 // Topic 配置
 const subscribeTopic = ref('user/message/+client_id')
-const publishTopic = ref('ai_core/message')
+const publishTopic = ref('/ai-core/from-user/message')
 
 // Stores
 const chatStore = useChatStore()
@@ -270,9 +270,17 @@ const handleSendMessage = async () => {
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
-  if (event.ctrlKey && event.key === 'Enter') {
-    event.preventDefault()
-    handleSendMessage()
+  if (event.key === 'Enter') {
+    // 如果按的是 Ctrl+Enter，发送消息
+    if (event.ctrlKey) {
+      event.preventDefault()
+      handleSendMessage()
+    }
+    // 如果按的是单独的 Enter，也发送消息
+    else {
+      event.preventDefault()
+      handleSendMessage()
+    }
   }
 }
 
@@ -365,7 +373,7 @@ onMounted(async () => {
     // 然后初始化 MQTT 连接
     await chatStore.initializeWebSocket()
     
-    // 订阅指定的 topic
+    // 订阅指定的 topic（用于接收AI助手的回复）
     mqttClient.subscribe(subscribeTopic.value)
   } catch (err) {
     ElMessage.error('加载数据失败')

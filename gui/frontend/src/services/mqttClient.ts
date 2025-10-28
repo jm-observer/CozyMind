@@ -85,7 +85,7 @@ export class MqttClient {
           this.connectionStatus.connected = false
         })
 
-        // 接收消息
+        // 接收消息（只记录日志，具体处理由外部处理器负责）
         this.client.on('message', (topic, payload, packet) => {
           console.log('📨 MQTT message received:', {
             topic,
@@ -199,6 +199,9 @@ export class MqttClient {
   // 设置消息处理器
   onMessage(handler: (topic: string, payload: Buffer, packet: mqtt.IPublishPacket) => void) {
     if (this.client) {
+      // 先移除所有现有的消息处理器，避免重复
+      this.client.removeAllListeners('message')
+      // 添加新的处理器
       this.client.on('message', handler)
     }
   }

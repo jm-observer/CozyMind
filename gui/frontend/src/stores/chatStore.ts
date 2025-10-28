@@ -42,21 +42,25 @@ export const useChatStore = defineStore('chat', () => {
           retain: packet.retain
         })
         
-        // 处理聊天消息
-        if (topic.startsWith('chat/')) {
+        // 处理AI助手的回复消息
+        if (topic.startsWith('user/message/')) {
           try {
-            const message = JSON.parse(payload.toString())
-            if (message.role && message.content) {
-              messages.value.push(message)
+            const data = JSON.parse(payload.toString())
+            if (data.message && data.role === 'assistant') {
+              const assistantMessage: ChatMessage = {
+                id: Date.now().toString(),
+                content: data.message,
+                role: 'assistant',
+                timestamp: data.timestamp || new Date().toISOString(),
+                status: 'sent'
+              }
+              messages.value.push(assistantMessage)
             }
           } catch (err) {
-            console.error('Failed to parse chat message:', err)
+            console.error('Failed to parse assistant message:', err)
           }
         }
       })
-      
-      // 订阅聊天主题
-      mqttClient.subscribe('chat/receive/+')
       
       console.log('[Chat Store] MQTT initialized successfully')
     } catch (err) {
